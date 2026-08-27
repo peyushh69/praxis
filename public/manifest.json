@@ -1,0 +1,23 @@
+{
+  "short_name": "Praxis",
+  "name": "Praxis Focus & Habit Tracker",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#090a0f",
+  "theme_color": "#ff3b00",
+  "display": "standalone",
+  "orientation": "portrait"
+}

@@ -1,0 +1,138 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --mono-font: 'JetBrains Mono', monospace;
+    --pixel-font: 'Press Start 2P', monospace;
+    --silkscreen-font: 'Silkscreen', monospace;
+    --digital-font: 'VT323', monospace;
+  }
+
+  body {
+    background-color: #070709;
+    color: #f4f4f5;
+    font-family: 'Press Start 2P', 'Silkscreen', monospace;
+    letter-spacing: -0.01em;
+  }
+}
+
+.font-pixel-heading {
+  font-family: 'Press Start 2P', monospace;
+  letter-spacing: -0.03em;
+}
+
+.font-pixel-label {
+  font-family: 'Silkscreen', monospace;
+  letter-spacing: 0.04em;
+}
+
+.font-pixel-chunky {
+  font-family: 'Press Start 2P', monospace;
+  color: #d2ff28;
+  letter-spacing: -0.01em;
+  text-shadow: 
+    -2px -2px 0 #0d0e14,
+     2px -2px 0 #0d0e14,
+    -2px  2px 0 #0d0e14,
+     2px  2px 0 #0d0e14,
+    -2px  0px 0 #0d0e14,
+     2px  0px 0 #0d0e14,
+     0px -2px 0 #0d0e14,
+     0px  2px 0 #0d0e14,
+     0px  4px 0 #1b1930,
+     1px  4px 0 #1b1930,
+     2px  4px 0 #1b1930,
+     3px  5px 0 #161427,
+     4px  6px 0 #100f1c;
+}
+
+.font-pixel-digital {
+  font-family: 'VT323', monospace;
+  letter-spacing: 0.06em;
+}
+
+.font-mono-code {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Neon Orange & Matte Charcoal Theme Components */
+.pixel-box-orange {
+  background-color: #ff3b00;
+  color: #000000;
+  border: 2px solid #ff5500;
+  box-shadow: 0 0 20px rgba(255, 59, 0, 0.25);
+}
+
+.pixel-card-dark {
+  background-color: #0e0f13;
+  border: 1px solid #23242c;
+}
+
+.pixel-card-dark:hover {
+  border-color: #383a45;
+}
+
+.pixel-btn-orange {
+  background-color: #ff3b00;
+  border: 2px solid #ff6a00;
+  color: #000000;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  box-shadow: 2px 2px 0px #992400;
+  transition: all 0.1s ease;
+}
+
+.pixel-btn-orange:hover {
+  background-color: #ff4f19;
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0px #992400;
+}
+
+.pixel-btn-orange:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0px #992400;
+}
+
+.pixel-btn-dark {
+  background-color: #17181f;
+  border: 1px solid #2f303c;
+  color: #f4f4f5;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  box-shadow: 2px 2px 0px #090a0d;
+  transition: all 0.1s ease;
+}
+
+.pixel-btn-dark:hover {
+  background-color: #22232d;
+  border-color: #ff3b00;
+  color: #ffffff;
+}
+
+.pixel-btn-dark:active {
+  transform: translate(1px, 1px);
+  box-shadow: 0px 0px 0px #000;
+}
+
+.pixel-badge {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  padding: 3px 6px;
+  border: 1px solid;
+}
+
+/* Subtle scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #070709;
+}
+::-webkit-scrollbar-thumb {
+  background: #23242c;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #ff3b00;
+}
+

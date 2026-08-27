@@ -1,0 +1,6 @@
+{
+  "name": "Pixel Pomodoro & Consistency Tracker",
+  "description": "Praxis: A professional retro 8-bit Pomodoro timer with pixel-style countdown display and an interactive daily consistency matrix.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
