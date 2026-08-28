@@ -32,7 +32,7 @@ import { CountdownGoal } from './types';
 
 const DEFAULT_COUNTDOWN_GOAL: CountdownGoal = {
   id: 'goal-exam-october',
-  title: '5 October Exam',
+  title: 'UKSSSC Exam',
   targetDate: '2026-10-05',
   startDate: '2026-08-01',
   description: 'Exam Countdown & Milestone Tracker',

@@ -294,13 +294,11 @@ export const PixelTimer: React.FC<PixelTimerProps> = ({
                 >
                   {isRunning ? (
                     <>
-                      <span className="w-2 h-2 rounded-full bg-[#ff3b00] animate-ping" />
                       <Pause size={14} className="fill-current" />
                       <span>PAUSE</span>
                     </>
                   ) : (
                     <>
-                      <span className="w-2 h-2 rounded-full bg-black" />
                       <Play size={14} className="fill-current" />
                       <span>START</span>
                     </>

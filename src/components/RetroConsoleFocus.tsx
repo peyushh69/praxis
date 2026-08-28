@@ -468,25 +468,8 @@ export const RetroConsoleFocus: React.FC<RetroConsoleFocusProps> = ({
                 </button>
               </div>
 
-              {/* Middle Top: The White Apple-Style Module (From photo) */}
-              <div className="flex-1 flex flex-col items-center">
-                <div className="w-full bg-gradient-to-b from-[#fbfcfe] to-[#ebeff8] border border-white rounded-xl p-2 shadow-[0_3px_8px_rgba(0,0,0,0.15)] flex items-center justify-center">
-                  <div className="flex items-center gap-2">
-                    {/* Minimalist Apple Silhouette */}
-                    <svg className="w-5 h-5 fill-zinc-400" viewBox="0 0 170 170">
-                      <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.69-3.04-7.59-7.79-11.72-14.24-6.3-9.9-11.24-21.2-14.81-33.89-3.57-12.69-5.36-24.32-5.36-34.89 0-14.57 3.63-26.65 10.89-36.23 7.26-9.58 16.59-14.49 27.99-14.73 4.35 0 9.29 1.16 14.82 3.49 5.53 2.33 9.4 3.55 11.61 3.66 1.74-.11 5.76-1.4 12.06-3.86 6.3-2.46 11.61-3.57 15.93-3.33 11.96.65 21.6 5.17 28.93 13.56-10.43 6.3-15.54 15-15.33 26.11.22 8.7 3.58 15.98 10.09 21.85 6.51 5.87 14.12 9.23 22.84 10.09-2.39 7.18-5.33 14.78-8.81 22.81zM119.22 33.64c0-7.18 2.61-13.91 7.83-20.2 5.22-6.29 11.63-10.21 19.23-11.74.87 7.61-1.42 14.45-6.86 20.52-5.44 6.07-12.18 9.87-20.2 11.42z" />
-                    </svg>
-                    <span className="text-[7.5px] font-pixel-heading font-black text-zinc-500 tracking-wider">
-                      PRO CONSOLE
-                    </span>
-                  </div>
-                </div>
-
-                {/* Cyber Power / Bolt Glyph card (From photo) */}
-                <div className="w-12 h-6 mt-1.5 bg-gradient-to-b from-[#ffffff] to-[#e4e8f3] border border-white rounded-md flex items-center justify-center shadow-xs">
-                  <Zap size={11} className="text-zinc-600 fill-zinc-600" />
-                </div>
-              </div>
+              {/* Middle Top: Minimal Spacer */}
+              <div className="flex-1" />
 
               {/* Right Top: Big Tactile Rotary Dial Knob (Camera lens style) */}
               <button
@@ -631,36 +614,7 @@ export const RetroConsoleFocus: React.FC<RetroConsoleFocusProps> = ({
 
           </div>
 
-          {/* =========================================================================
-              4. BOTTOM ROTARY WHEEL & ORANGE CHASSIS BUMPER (From reference photo)
-              ========================================================================= */}
-          <div className="relative mt-2.5 rounded-xl bg-gradient-to-r from-[#ea2b16] via-[#ff3823] to-[#c71c0b] p-2 border border-[#ff6e5e] shadow-[0_4px_10px_rgba(0,0,0,0.4)] flex items-center justify-between">
-            
-            {/* The Striped Metallic Rotary Thumbwheel (from lower left in photo) */}
-            <div
-              className={`w-12 h-6 rounded-md bg-[#161720] border border-white/40 overflow-hidden shadow-inner flex items-center ${
-                isRunning ? 'animate-pulse' : ''
-              }`}
-              style={{
-                backgroundImage: 'repeating-linear-gradient(45deg, #111, #111 3px, #e6e6e6 3px, #e6e6e6 6px)',
-              }}
-            />
 
-            {/* Console Branding Pill */}
-            <div className="text-center">
-              <span className="text-[8px] font-pixel-heading font-black text-black tracking-widest uppercase">
-                PRAXIS P-01
-              </span>
-            </div>
-
-            {/* Quick Add +5 min Action */}
-            <button
-              onClick={onAddFiveMinutes}
-              className="px-2.5 py-1 rounded bg-[#0d0e14] hover:bg-[#1a1c27] text-[#ff8e3c] border border-black text-[7px] font-pixel-heading font-bold cursor-pointer transition-all"
-            >
-              +5 MIN
-            </button>
-          </div>
 
         </div>
 

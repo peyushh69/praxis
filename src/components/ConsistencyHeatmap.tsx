@@ -250,44 +250,6 @@ export const ConsistencyHeatmap: React.FC<ConsistencyHeatmapProps> = ({
           </div>
         </div>
 
-        {/* Days Left in Year Highlight Banner */}
-        <div className="bg-[#090a0d] border-2 border-[#2e3040] hover:border-[#3e4256] transition-colors p-3.5 sm:p-4 mb-4 shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4 font-pixel-heading">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-white text-black flex items-center justify-center font-bold text-sm shrink-0 border border-zinc-300 shadow-[0_0_10px_rgba(255,255,255,0.2)]">
-              <Clock size={16} />
-            </div>
-            <div>
-              <div className="text-[8px] text-zinc-400 font-pixel-label uppercase tracking-wider">
-                TIMELINE ({selectedYear})
-              </div>
-              <div className="text-xs sm:text-sm font-bold text-white mt-0.5 flex items-center gap-2 flex-wrap">
-                <span className="text-white bg-[#161822] border border-[#2e3040] px-2 py-0.5">
-                  {daysRemaining} DAYS LEFT
-                </span>
-                <span className="text-zinc-400 text-[8px] font-pixel-label">
-                  ({dayOfYear}/{totalDaysInYear} DAYS)
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* White High-Contrast Progress Bar with Dark Remaining Track */}
-          <div className="w-full md:w-56 flex flex-col gap-1 shrink-0">
-            <div className="flex justify-between text-[7px] text-zinc-400 font-pixel-label">
-              <span>JAN 1</span>
-              <span className="text-white font-bold">{yearProgressPct}%</span>
-              <span>DEC 31</span>
-            </div>
-            <div className="w-full bg-[#12131a] border border-[#2b2d3d] h-4 p-0.5 relative overflow-hidden">
-              <div
-                className="h-full bg-white transition-all duration-500 shadow-[0_0_8px_rgba(255,255,255,0.3)]"
-                style={{ width: `${yearProgressPct}%` }}
-                title={`${yearProgressPct}% of ${selectedYear} passed`}
-              />
-            </div>
-          </div>
-        </div>
-
         {/* Metrics Overview Strip */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-5 font-pixel-heading">
           <div className="bg-[#090a0d] border border-[#242630] p-3">
