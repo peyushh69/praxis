@@ -418,11 +418,18 @@ export const App: React.FC = () => {
       </main>
 
       {/* Footer */}
-      <footer className="border-t-2 border-[#242630] bg-[#0e0f14] py-3.5 text-center font-pixel-heading text-[8px] text-zinc-500">
-        <div className="max-w-4xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span className="text-zinc-400">PRAXIS • FOCUS & HABIT TRACKER</span>
-          <div className="flex items-center gap-4 text-zinc-500 font-pixel-label">
-            <span>OFFLINE LOCAL PERSISTENCE</span>
+      <footer className="border-t-2 border-[#242630] bg-[#0e0f14] py-4 text-center font-pixel-heading text-[8px] text-zinc-500">
+        <div className="max-w-4xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+          <div className="flex flex-col sm:items-start items-center text-center sm:text-left gap-0.5">
+            <span className="text-white font-bold text-[9.5px] tracking-wider">PRAXIS</span>
+            <span className="text-[7.5px] text-zinc-400 font-pixel-label tracking-normal">
+              By <strong className="text-zinc-200 font-semibold">Zero Sum Commune</strong> • Created by <strong className="text-white font-semibold">Peyush</strong>
+            </span>
+          </div>
+          <div className="flex items-center gap-3 text-zinc-400 font-pixel-label text-[7.5px]">
+            <span className="bg-[#171922] border border-[#272a38] px-2 py-0.5 text-zinc-300">
+              OFFLINE LOCAL PERSISTENCE
+            </span>
           </div>
         </div>
       </footer>

@@ -86,29 +86,40 @@ export const ExamCountdownCard: React.FC<ExamCountdownCardProps> = ({
     const dots = [];
     const startDate = new Date(goal.startDate + 'T00:00:00');
     const totalToRender = Math.max(1, Math.min(120, examStats.totalDays));
+    const todayDotIndex = Math.min(
+      totalToRender - 1,
+      Math.max(0, Math.floor((examStats.daysElapsed / examStats.totalDays) * totalToRender))
+    );
 
     for (let i = 0; i < totalToRender; i++) {
+      const isToday = !examStats.isTargetPassed && i === todayDotIndex;
+      const isElapsed = examStats.isTargetPassed || i < todayDotIndex;
+
       const dotDate = new Date(startDate);
-      const dayOffset = examStats.totalDays > 120 
-        ? Math.floor((i / totalToRender) * examStats.totalDays) 
-        : i;
-      
-      dotDate.setDate(dotDate.getDate() + dayOffset);
-      const dotDateStr = `${dotDate.getFullYear()}-${String(dotDate.getMonth() + 1).padStart(2, '0')}-${String(dotDate.getDate()).padStart(2, '0')}`;
-      
-      const isElapsed = dotDateStr < todayStr;
-      const isToday = dotDateStr === todayStr;
+      let dayOffset: number;
+      let dotDateStr: string;
+
+      if (isToday) {
+        dayOffset = examStats.daysElapsed;
+        dotDateStr = todayStr;
+      } else {
+        dayOffset = examStats.totalDays > 120 
+          ? Math.floor((i / totalToRender) * examStats.totalDays) 
+          : i;
+        dotDate.setDate(dotDate.getDate() + dayOffset);
+        dotDateStr = `${dotDate.getFullYear()}-${String(dotDate.getMonth() + 1).padStart(2, '0')}-${String(dotDate.getDate()).padStart(2, '0')}`;
+      }
 
       dots.push({
         index: i,
         dayNum: dayOffset + 1,
         dateStr: dotDateStr,
-        isElapsed: isElapsed || (isToday && examStats.isTargetPassed),
+        isElapsed,
         isToday,
       });
     }
     return dots;
-  }, [goal.startDate, examStats.totalDays, todayStr, examStats.isTargetPassed]);
+  }, [goal.startDate, examStats.totalDays, examStats.daysElapsed, examStats.isTargetPassed, todayStr]);
 
   // ==========================================
   // 2. STATS FOR SLIDE 2: YEAR 2026 TIMELINE
@@ -139,15 +150,27 @@ export const ExamCountdownCard: React.FC<ExamCountdownCardProps> = ({
     const dots = [];
     const startDate = new Date(currentYear, 0, 1);
     const totalToRender = 100; // 100 dense proportional dots representing 100% of year
+    const todayDotIndex = Math.min(
+      totalToRender - 1,
+      Math.max(0, Math.floor(((yearStats.dayOfYear - 1) / yearStats.totalDaysInYear) * totalToRender))
+    );
 
     for (let i = 0; i < totalToRender; i++) {
-      const dotDate = new Date(startDate);
-      const dayOffset = Math.floor((i / totalToRender) * yearStats.totalDaysInYear);
-      dotDate.setDate(dotDate.getDate() + dayOffset);
-      const dotDateStr = `${dotDate.getFullYear()}-${String(dotDate.getMonth() + 1).padStart(2, '0')}-${String(dotDate.getDate()).padStart(2, '0')}`;
+      const isToday = i === todayDotIndex;
+      const isElapsed = i < todayDotIndex;
 
-      const isElapsed = (i + 1) <= Math.round((yearStats.dayOfYear / yearStats.totalDaysInYear) * totalToRender);
-      const isToday = Math.abs(dayOffset - yearStats.dayOfYear) <= 3;
+      const dotDate = new Date(startDate);
+      let dayOffset: number;
+      let dotDateStr: string;
+
+      if (isToday) {
+        dayOffset = yearStats.dayOfYear - 1;
+        dotDateStr = todayStr;
+      } else {
+        dayOffset = Math.min(yearStats.totalDaysInYear - 1, Math.floor((i / totalToRender) * yearStats.totalDaysInYear));
+        dotDate.setDate(dotDate.getDate() + dayOffset);
+        dotDateStr = `${dotDate.getFullYear()}-${String(dotDate.getMonth() + 1).padStart(2, '0')}-${String(dotDate.getDate()).padStart(2, '0')}`;
+      }
 
       dots.push({
         index: i,
@@ -158,7 +181,7 @@ export const ExamCountdownCard: React.FC<ExamCountdownCardProps> = ({
       });
     }
     return dots;
-  }, [currentYear, yearStats.totalDaysInYear, yearStats.dayOfYear]);
+  }, [currentYear, yearStats.totalDaysInYear, yearStats.dayOfYear, todayStr]);
 
   // Swipe & Touch handlers
   const handleTouchStart = (e: React.TouchEvent) => {
