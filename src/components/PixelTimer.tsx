@@ -180,7 +180,6 @@ export const PixelTimer: React.FC<PixelTimerProps> = ({
               {/* Top Sub-Labels on Orange Card */}
               <div className="flex items-center justify-between text-[10px] font-pixel-label font-bold text-black border-b border-black/20 pb-2 mb-3">
                 <div className="flex items-center gap-2">
-                  <span className={`w-2 h-2 bg-black ${isRunning ? 'animate-ping' : ''}`} />
                   <span className="uppercase tracking-wider">
                     {mode === 'focus' ? 'FOCUS SESSION' : mode === 'shortBreak' ? 'SHORT BREAK' : 'LONG BREAK'}
                   </span>

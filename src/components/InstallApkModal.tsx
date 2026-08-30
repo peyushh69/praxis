@@ -74,7 +74,7 @@ export const InstallApkModal: React.FC<InstallApkModalProps> = ({ isOpen, onClos
             <div>
               <div className="text-white font-pixel-heading text-[10px] font-bold">Praxis Android PWA</div>
               <div className="text-zinc-400 text-[8.5px] mt-0.5">
-                Full offline support • Instant launch • Fullscreen retro study timer
+                Full offline support • Instant launch • Fullscreen retro focus timer
               </div>
             </div>
           </div>

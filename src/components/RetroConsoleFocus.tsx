@@ -1,20 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  X,
   Volume2,
   VolumeX,
-  Sparkles,
-  CloudRain,
-  Flame,
-  CheckCircle2,
-  Maximize2,
   Minimize2,
-  Tv,
-  Music,
-  Radio,
-  Zap,
   Target,
-  Clock
+  RotateCcw,
+  SkipForward,
+  Plus,
+  Minus
 } from 'lucide-react';
 import { TimerMode, AppSettings, TaskItem } from '../types';
 
@@ -58,15 +51,10 @@ export const RetroConsoleFocus: React.FC<RetroConsoleFocusProps> = ({
   settings,
   onUpdateSettings,
   activeTask,
-  todayMinutes = 0,
   currentStreak = 0,
 }) => {
-  // Ambient Sound generator (White noise / Lo-fi rain / Deep focus wave / Ticking)
-  const [ambientSound, setAmbientSound] = useState<'none' | 'rain' | 'whitenoise' | 'ticking'>('none');
-  const [ambientVolume, setAmbientVolume] = useState(0.3);
   const [dpadActiveDir, setDpadActiveDir] = useState<string | null>(null);
   const [redBtnPressed, setRedBtnPressed] = useState(false);
-  const audioNodesRef = useRef<{ ctx: AudioContext; source?: AudioNode; gain?: GainNode; interval?: number } | null>(null);
 
   // Keyboard shortcut support in Fullscreen console
   useEffect(() => {
@@ -83,111 +71,14 @@ export const RetroConsoleFocus: React.FC<RetroConsoleFocusProps> = ({
         onReset();
       } else if (e.key === '+') {
         onAddFiveMinutes();
-      } else if (e.key === 'f' || e.key === 'F') {
-        // Toggle system fullscreen if desired
-        if (!document.fullscreenElement) {
-          document.documentElement.requestFullscreen?.().catch(() => {});
-        } else {
-          document.exitFullscreen?.().catch(() => {});
-        }
+      } else if (e.key === '-') {
+        if (onSubtractFiveMinutes) onSubtractFiveMinutes();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isRunning, onStart, onPause, onReset, onAddFiveMinutes, onClose]);
-
-  // Ambient sound synthesizer
-  useEffect(() => {
-    if (!isOpen || ambientSound === 'none') {
-      if (audioNodesRef.current) {
-        if (audioNodesRef.current.interval) clearInterval(audioNodesRef.current.interval);
-        audioNodesRef.current.ctx.close().catch(() => {});
-        audioNodesRef.current = null;
-      }
-      return;
-    }
-
-    try {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      const ctx = new AudioCtx();
-      const masterGain = ctx.createGain();
-      masterGain.gain.setValueAtTime(ambientVolume, ctx.currentTime);
-      masterGain.connect(ctx.destination);
-
-      if (ambientSound === 'whitenoise') {
-        // Pink / soft brown noise buffer
-        const bufferSize = ctx.sampleRate * 2;
-        const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-        const output = noiseBuffer.getChannelData(0);
-        let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
-        for (let i = 0; i < bufferSize; i++) {
-          const white = Math.random() * 2 - 1;
-          b0 = 0.99886 * b0 + white * 0.0555179;
-          b1 = 0.99332 * b1 + white * 0.0750759;
-          b2 = 0.96900 * b2 + white * 0.1538520;
-          b3 = 0.86650 * b3 + white * 0.3104856;
-          b4 = 0.55000 * b4 + white * 0.5329522;
-          b5 = -0.7616 * b5 - white * 0.0168980;
-          output[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.035;
-          b6 = white * 0.115926;
-        }
-        const whiteNoise = ctx.createBufferSource();
-        whiteNoise.buffer = noiseBuffer;
-        whiteNoise.loop = true;
-        whiteNoise.connect(masterGain);
-        whiteNoise.start(0);
-        audioNodesRef.current = { ctx, source: whiteNoise, gain: masterGain };
-      } else if (ambientSound === 'rain') {
-        // Rain effect with lowpass filter
-        const bufferSize = ctx.sampleRate * 2;
-        const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-        const output = noiseBuffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) {
-          output[i] = (Math.random() * 2 - 1) * 0.05;
-        }
-        const whiteNoise = ctx.createBufferSource();
-        whiteNoise.buffer = noiseBuffer;
-        whiteNoise.loop = true;
-
-        const filter = ctx.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(800, ctx.currentTime);
-
-        whiteNoise.connect(filter);
-        filter.connect(masterGain);
-        whiteNoise.start(0);
-        audioNodesRef.current = { ctx, source: whiteNoise, gain: masterGain };
-      } else if (ambientSound === 'ticking') {
-        // Soft mechanical clock tick every second
-        const tickInterval = window.setInterval(() => {
-          if (ctx.state === 'running') {
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(1200, ctx.currentTime);
-            gain.gain.setValueAtTime(ambientVolume * 0.15, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.03);
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start();
-            osc.stop(ctx.currentTime + 0.04);
-          }
-        }, 1000);
-        audioNodesRef.current = { ctx, gain: masterGain, interval: tickInterval };
-      }
-    } catch {
-      // Audio permission or unsupported
-    }
-
-    return () => {
-      if (audioNodesRef.current) {
-        if (audioNodesRef.current.interval) clearInterval(audioNodesRef.current.interval);
-        audioNodesRef.current.ctx.close().catch(() => {});
-        audioNodesRef.current = null;
-      }
-    };
-  }, [ambientSound, ambientVolume, isOpen]);
+  }, [isOpen, isRunning, onStart, onPause, onReset, onAddFiveMinutes, onSubtractFiveMinutes, onClose]);
 
   if (!isOpen) return null;
 
@@ -212,9 +103,9 @@ export const RetroConsoleFocus: React.FC<RetroConsoleFocusProps> = ({
       if (onSubtractFiveMinutes) onSubtractFiveMinutes();
       else onReset();
     } else if (direction === 'left') {
-      onSwitchMode('shortBreak');
+      onReset();
     } else if (direction === 'right') {
-      onSwitchMode('focus');
+      onSkip();
     }
   };
 
@@ -225,120 +116,88 @@ export const RetroConsoleFocus: React.FC<RetroConsoleFocusProps> = ({
     else onStart();
   };
 
+  const handleVolumeCycle = () => {
+    if (!settings.soundEnabled) {
+      onUpdateSettings({ soundEnabled: true, soundVolume: 0.5 });
+    } else if (settings.soundVolume <= 0.5) {
+      onUpdateSettings({ soundVolume: 1.0 });
+    } else {
+      onUpdateSettings({ soundEnabled: false });
+    }
+  };
+
   return (
     <div
       id="retro-console-overlay"
-      className="fixed inset-0 z-50 bg-[#050608]/95 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto select-none"
+      className="fixed inset-0 z-50 bg-[#050608]/95 backdrop-blur-md flex items-center justify-center p-2 sm:p-3 md:p-4 select-none overflow-y-auto"
     >
       {/* Top Floating Control Bar */}
-      <div className="fixed top-3 left-3 right-3 sm:top-5 sm:left-6 sm:right-6 flex items-center justify-between z-50 pointer-events-auto">
-        <div className="flex items-center gap-2 bg-[#0e1017]/90 border border-[#24283b] px-3 py-1.5 shadow-lg backdrop-blur-md">
+      <div className="fixed top-2 left-2 right-2 sm:top-4 sm:left-6 sm:right-6 flex items-center justify-between z-50 pointer-events-auto">
+        <div className="flex items-center gap-1.5 sm:gap-2 bg-[#0e1017]/90 border border-[#24283b] px-2.5 sm:px-3 py-1 sm:py-1.5 shadow-lg backdrop-blur-md rounded-xs">
           <span className="w-2 h-2 rounded-full bg-[#ff3b00] animate-pulse" />
-          <span className="text-[9px] font-pixel-heading text-zinc-200 tracking-wider">
-            STUDY CONSOLE FOCUS MODE
+          <span className="text-[8px] sm:text-[9px] font-pixel-heading text-zinc-200 tracking-wider">
+            FOCUS CONSOLE
           </span>
         </div>
 
-        {/* Ambient Sound Selector & Exit Button */}
-        <div className="flex items-center gap-2">
-          {/* Ambient Noise Switcher */}
-          <div className="flex items-center bg-[#0e1017]/90 border border-[#24283b] p-1 gap-1 shadow-lg backdrop-blur-md">
-            <button
-              onClick={() => setAmbientSound(ambientSound === 'rain' ? 'none' : 'rain')}
-              className={`px-2 py-1 text-[8px] font-pixel-label flex items-center gap-1 cursor-pointer transition-colors ${
-                ambientSound === 'rain'
-                  ? 'bg-[#3b82f6] text-black font-bold'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-              title="Rain Sound"
-            >
-              <CloudRain size={10} />
-              <span className="hidden sm:inline">RAIN</span>
-            </button>
-
-            <button
-              onClick={() => setAmbientSound(ambientSound === 'whitenoise' ? 'none' : 'whitenoise')}
-              className={`px-2 py-1 text-[8px] font-pixel-label flex items-center gap-1 cursor-pointer transition-colors ${
-                ambientSound === 'whitenoise'
-                  ? 'bg-[#10b981] text-black font-bold'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-              title="Focus White Noise"
-            >
-              <Radio size={10} />
-              <span className="hidden sm:inline">NOISE</span>
-            </button>
-
-            <button
-              onClick={() => setAmbientSound(ambientSound === 'ticking' ? 'none' : 'ticking')}
-              className={`px-2 py-1 text-[8px] font-pixel-label flex items-center gap-1 cursor-pointer transition-colors ${
-                ambientSound === 'ticking'
-                  ? 'bg-amber-400 text-black font-bold'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-              title="Mechanical Clock Tick"
-            >
-              <Clock size={10} />
-              <span className="hidden sm:inline">TICK</span>
-            </button>
-          </div>
-
+        {/* Audio Toggle & Exit Button */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Sound Toggle */}
           <button
             onClick={() => onUpdateSettings({ soundEnabled: !settings.soundEnabled })}
-            className={`p-2 border transition-colors cursor-pointer bg-[#0e1017]/90 ${
+            className={`p-1.5 sm:p-2 border transition-colors cursor-pointer bg-[#0e1017]/90 rounded-xs ${
               settings.soundEnabled ? 'border-[#ff3b00] text-[#ff3b00]' : 'border-[#24283b] text-zinc-500'
             }`}
-            title="Toggle 8-bit Audio"
+            title="Toggle Audio Feedback"
           >
-            {settings.soundEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
+            {settings.soundEnabled ? <Volume2 size={13} /> : <VolumeX size={13} />}
           </button>
 
           {/* Exit Fullscreen Console */}
           <button
             onClick={onClose}
-            className="p-2 bg-[#ff3b00] hover:bg-[#ff5500] text-black border border-[#ff5500] transition-colors cursor-pointer flex items-center gap-1.5 shadow-md"
+            className="p-1.5 sm:p-2 bg-[#ff3b00] hover:bg-[#ff5500] text-black border border-[#ff5500] transition-colors cursor-pointer flex items-center gap-1.5 shadow-md rounded-xs"
             title="Exit Fullscreen (ESC)"
           >
-            <Minimize2 size={14} />
-            <span className="text-[9px] font-pixel-heading font-bold hidden sm:inline">EXIT</span>
+            <Minimize2 size={13} />
+            <span className="text-[8px] sm:text-[9px] font-pixel-heading font-bold hidden sm:inline">EXIT</span>
           </button>
         </div>
       </div>
 
       {/* =========================================================================
-          THE RETRO HARDWARE GAMING CONSOLE (Directly Replicating Reference Photo)
+          THE RETRO HARDWARE GAMING CONSOLE CHASSIS - FULLY CENTERED & VIEWPORT FIT
           ========================================================================= */}
-      <div className="relative w-full max-w-[370px] sm:max-w-[400px] my-auto mt-12 sm:mt-14 select-none">
+      <div className="relative w-full max-w-[340px] sm:max-w-[370px] md:max-w-[380px] my-auto pt-7 sm:pt-6 select-none flex flex-col items-center justify-center">
         
         {/* Outer Translucent Cyber Chassis with Mechanical Bevels & Screws */}
-        <div className="relative rounded-[32px] p-4 sm:p-5 bg-gradient-to-b from-[#d9dbe3]/95 via-[#cbced9]/90 to-[#b5b8c7]/95 border-[3px] border-[#eff1f8] shadow-[0_25px_60px_rgba(0,0,0,0.95),inset_0_2px_4px_rgba(255,255,255,0.8),inset_0_-4px_8px_rgba(0,0,0,0.25)] overflow-hidden">
+        <div className="w-full relative rounded-[26px] sm:rounded-[30px] p-3.5 sm:p-4 bg-gradient-to-b from-[#d9dbe3]/95 via-[#cbced9]/90 to-[#b5b8c7]/95 border-[2.5px] border-[#eff1f8] shadow-[0_20px_50px_rgba(0,0,0,0.95),inset_0_2px_4px_rgba(255,255,255,0.8),inset_0_-4px_8px_rgba(0,0,0,0.25)] overflow-hidden">
           
           {/* Subtle Screws at 4 Chassis Corners */}
-          <div className="absolute top-3 left-3 w-2.5 h-2.5 rounded-full bg-[#8c909e] border border-[#a8acb9] flex items-center justify-center shadow-inner opacity-75">
-            <div className="w-1.5 h-0.5 bg-[#545763]" />
+          <div className="absolute top-2.5 left-2.5 w-2 h-2 rounded-full bg-[#8c909e] border border-[#a8acb9] flex items-center justify-center shadow-inner opacity-75">
+            <div className="w-1 h-0.5 bg-[#545763]" />
           </div>
-          <div className="absolute top-3 right-3 w-2.5 h-2.5 rounded-full bg-[#8c909e] border border-[#a8acb9] flex items-center justify-center shadow-inner opacity-75">
-            <div className="w-1.5 h-0.5 bg-[#545763] rotate-45" />
+          <div className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-[#8c909e] border border-[#a8acb9] flex items-center justify-center shadow-inner opacity-75">
+            <div className="w-1 h-0.5 bg-[#545763] rotate-45" />
           </div>
-          <div className="absolute bottom-3 left-3 w-2.5 h-2.5 rounded-full bg-[#8c909e] border border-[#a8acb9] flex items-center justify-center shadow-inner opacity-75">
-            <div className="w-1.5 h-0.5 bg-[#545763] -rotate-45" />
+          <div className="absolute bottom-2.5 left-2.5 w-2 h-2 rounded-full bg-[#8c909e] border border-[#a8acb9] flex items-center justify-center shadow-inner opacity-75">
+            <div className="w-1 h-0.5 bg-[#545763] -rotate-45" />
           </div>
-          <div className="absolute bottom-3 right-3 w-2.5 h-2.5 rounded-full bg-[#8c909e] border border-[#a8acb9] flex items-center justify-center shadow-inner opacity-75">
-            <div className="w-1.5 h-0.5 bg-[#545763] rotate-90" />
+          <div className="absolute bottom-2.5 right-2.5 w-2 h-2 rounded-full bg-[#8c909e] border border-[#a8acb9] flex items-center justify-center shadow-inner opacity-75">
+            <div className="w-1 h-0.5 bg-[#545763] rotate-90" />
           </div>
 
-          {/* Top Black Latches / Grip Modules (From Reference Image) */}
-          <div className="absolute top-12 -left-1 w-2 h-14 bg-[#14151b] rounded-r-md border-r border-[#3a3d4f] shadow-md" />
-          <div className="absolute top-12 -right-1 w-2 h-14 bg-[#14151b] rounded-l-md border-l border-[#3a3d4f] shadow-md" />
+          {/* Top Grip Latches */}
+          <div className="absolute top-10 -left-1 w-1.5 h-10 bg-[#14151b] rounded-r-md border-r border-[#3a3d4f] shadow-md" />
+          <div className="absolute top-10 -right-1 w-1.5 h-10 bg-[#14151b] rounded-l-md border-l border-[#3a3d4f] shadow-md" />
 
           {/* =========================================================================
-              1. TOP CYBER SCREEN (Orange-Red Retro Pixel Display from image)
+              1. TOP CRT PIXEL DISPLAY SCREEN
               ========================================================================= */}
-          <div className="relative rounded-[22px] p-2 sm:p-2.5 bg-gradient-to-b from-[#2a2c38] to-[#161720] border-[2px] border-[#3f4357] shadow-[inset_0_4px_10px_rgba(0,0,0,0.8)]">
+          <div className="relative rounded-[18px] sm:rounded-[20px] p-2 bg-gradient-to-b from-[#2a2c38] to-[#161720] border-[2px] border-[#3f4357] shadow-[inset_0_4px_10px_rgba(0,0,0,0.8)]">
             
             {/* The Vivid Red/Orange Pixel CRT Screen */}
-            <div className="relative rounded-[16px] bg-gradient-to-br from-[#ff3823] via-[#ea2b16] to-[#cf1d0a] p-3.5 sm:p-4 text-black shadow-[inset_0_0_25px_rgba(0,0,0,0.4),0_0_15px_rgba(234,43,22,0.4)] overflow-hidden flex flex-col justify-between min-h-[220px]">
+            <div className="relative rounded-[14px] bg-gradient-to-br from-[#ff3823] via-[#ea2b16] to-[#cf1d0a] p-3 sm:p-3.5 text-black shadow-[inset_0_0_20px_rgba(0,0,0,0.4),0_0_15px_rgba(234,43,22,0.4)] overflow-hidden flex flex-col justify-between min-h-[175px] sm:min-h-[190px]">
               
               {/* Retro CRT Scanline Overlay */}
               <div
@@ -350,26 +209,25 @@ export const RetroConsoleFocus: React.FC<RetroConsoleFocusProps> = ({
               />
 
               {/* Screen Top Status Bar */}
-              <div className="relative z-10 flex items-center justify-between text-[8px] font-pixel-heading font-black tracking-wider border-b border-black/25 pb-1.5">
+              <div className="relative z-10 flex items-center justify-between text-[7.5px] sm:text-[8px] font-pixel-heading font-black tracking-wider border-b border-black/25 pb-1">
                 <div className="flex items-center gap-1.5">
-                  <span className={`w-2 h-2 rounded-full bg-black ${isRunning ? 'animate-ping' : ''}`} />
                   <span className="uppercase">
                     {mode === 'focus' ? 'FOCUS INTERVAL' : mode === 'shortBreak' ? 'SHORT BREAK' : 'LONG BREAK'}
                   </span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className="bg-black text-[#ff3823] px-1.5 py-0.5 text-[7.5px]">
+                  <span className="bg-black text-[#ff3823] px-1.5 py-0.5 text-[7px]">
                     {isRunning ? 'RUNNING' : 'PAUSED'}
                   </span>
-                  <span className="font-mono text-[8px] font-bold">
+                  <span className="font-mono text-[7.5px] font-bold">
                     [{(completedCycles % 4) + 1}/4]
                   </span>
                 </div>
               </div>
 
               {/* Big Centered Pixel Countdown Display */}
-              <div className="relative z-10 my-3 text-center flex flex-col items-center justify-center">
-                <div className="font-pixel-heading font-extrabold text-black leading-none drop-shadow-[0_2px_0_rgba(255,255,255,0.2)] tracking-tighter tabular-nums text-4xl sm:text-5xl md:text-[54px]">
+              <div className="relative z-10 my-2 text-center flex flex-col items-center justify-center">
+                <div className="font-pixel-heading font-extrabold text-black leading-none drop-shadow-[0_2px_0_rgba(255,255,255,0.2)] tracking-tighter tabular-nums text-4xl sm:text-[46px] md:text-[50px]">
                   {showHours
                     ? `${formattedHours}:${formattedMinutes}:${formattedSeconds}`
                     : `${String(Math.floor(timeLeft / 60)).padStart(2, '0')}:${formattedSeconds}`}
@@ -377,20 +235,20 @@ export const RetroConsoleFocus: React.FC<RetroConsoleFocusProps> = ({
 
                 {/* Active Task Name if present */}
                 {activeTask ? (
-                  <div className="mt-2 bg-black/85 text-[#ff8e3c] px-2.5 py-0.5 rounded-xs text-[8px] font-pixel-label font-bold truncate max-w-[240px] flex items-center gap-1 border border-black">
-                    <Target size={10} className="text-[#ff3823] shrink-0" />
+                  <div className="mt-1.5 bg-black/85 text-[#ff8e3c] px-2 py-0.5 rounded-xs text-[7.5px] font-pixel-label font-bold truncate max-w-[220px] flex items-center gap-1 border border-black">
+                    <Target size={9} className="text-[#ff3823] shrink-0" />
                     <span className="truncate">{activeTask.title}</span>
                   </div>
                 ) : (
-                  <div className="mt-1.5 text-[7.5px] font-pixel-label font-bold opacity-75 uppercase tracking-wider">
+                  <div className="mt-1 text-[7px] font-pixel-label font-bold opacity-75 uppercase tracking-wider">
                     PRAXIS DEEP WORK ENGINE
                   </div>
                 )}
               </div>
 
               {/* Segmented Pixel Progress Bar */}
-              <div className="relative z-10 w-full bg-black/40 p-1 border border-black/30 rounded-xs">
-                <div className="flex gap-0.5 h-2">
+              <div className="relative z-10 w-full bg-black/40 p-0.5 border border-black/30 rounded-xs">
+                <div className="flex gap-0.5 h-1.5 sm:h-2">
                   {Array.from({ length: 24 }).map((_, idx) => {
                     const filled = progressPercent >= (idx / 24) * 100;
                     return (
@@ -405,216 +263,196 @@ export const RetroConsoleFocus: React.FC<RetroConsoleFocusProps> = ({
                 </div>
               </div>
 
-              {/* Bottom Telemetry Text (From reference image: 00010 --% & HELLO || LET'S GO / ____ || PLAY GAME) */}
-              <div className="relative z-10 pt-2 border-t border-black/25 flex items-center justify-between text-[7px] font-pixel-label font-bold text-black/90">
-                <span className="tracking-tight">00010 --% &amp; FOCUS // LET&apos;S GO // STUDY</span>
+              {/* Bottom Telemetry Text */}
+              <div className="relative z-10 pt-1.5 border-t border-black/25 flex items-center justify-between text-[6.5px] sm:text-[7px] font-pixel-label font-bold text-black/90">
+                <span className="tracking-tight">00010 --% &amp; FOCUS // DEEP WORK // PRAXIS</span>
                 <span className="font-mono uppercase">STREAK: {currentStreak}D</span>
               </div>
             </div>
 
-            {/* Sub-Bezel Micro Text (From reference: GAME ON. LEVEL UP >> PRAXIS) */}
-            <div className="pt-1 px-2 flex items-center justify-between text-[6.5px] font-pixel-heading text-zinc-400 uppercase tracking-wider">
+            {/* Sub-Bezel Micro Text */}
+            <div className="pt-1 px-1.5 flex items-center justify-between text-[6px] sm:text-[6.5px] font-pixel-heading text-zinc-400 uppercase tracking-wider">
               <span>GAME ON. LEVEL UP &gt;&gt; PRAXIS</span>
               <span>VER 4.2 CONSOLE</span>
             </div>
           </div>
 
           {/* =========================================================================
-              2. TOP RED SLIDER BUTTONS (Just beneath the screen)
+              2. HARDWARE CONTROLS SECTION
               ========================================================================= */}
-          <div className="flex items-center justify-center gap-3 my-2.5">
-            <button
-              onClick={() => onSwitchMode(mode === 'focus' ? 'shortBreak' : 'focus')}
-              className="px-3 py-0.5 rounded-sm bg-gradient-to-b from-[#ff3823] to-[#c71c0b] border border-[#ff6e5e] shadow-[0_2px_4px_rgba(0,0,0,0.4)] text-[7px] font-pixel-heading font-black text-black uppercase cursor-pointer hover:brightness-110 active:scale-95 transition-all flex items-center gap-1"
-            >
-              <Zap size={9} />
-              <span>MODE: {mode === 'focus' ? 'FOCUS' : 'BREAK'}</span>
-            </button>
-            <button
-              onClick={onAddFiveMinutes}
-              className="px-3 py-0.5 rounded-sm bg-gradient-to-b from-[#ff3823] to-[#c71c0b] border border-[#ff6e5e] shadow-[0_2px_4px_rgba(0,0,0,0.4)] text-[7px] font-pixel-heading font-black text-black uppercase cursor-pointer hover:brightness-110 active:scale-95 transition-all flex items-center gap-1"
-            >
-              <span>+5 MIN</span>
-            </button>
-          </div>
-
-          {/* =========================================================================
-              3. MIDDLE / CONTROLS SECTION (Hardware Layout from Image)
-              ========================================================================= */}
-          <div className="relative rounded-[22px] bg-gradient-to-b from-[#e3e6f0]/80 to-[#cbced9]/80 border border-[#f5f7fc] p-3 shadow-inner">
+          <div className="relative mt-2.5 rounded-[18px] sm:rounded-[20px] bg-gradient-to-b from-[#e3e6f0]/80 to-[#cbced9]/80 border border-[#f5f7fc] p-2.5 sm:p-3 shadow-inner">
             
-            {/* Top Row of Controls: Black Pill Buttons + Apple White Badge + Lens Rotary Dial */}
-            <div className="flex items-start justify-between gap-2">
-              
-              {/* Left Top: Dual Stacked Pill Buttons */}
-              <div className="flex flex-col gap-1.5 shrink-0 pt-1">
-                <button
-                  onClick={() => onSwitchMode('focus')}
-                  className={`w-9 h-6 rounded-md bg-gradient-to-b from-[#2b2d38] to-[#12131a] border border-[#4a4d60] shadow-[0_3px_6px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.3)] flex items-center justify-center cursor-pointer active:scale-95 transition-all ${
-                    mode === 'focus' ? 'ring-2 ring-[#ff3823]' : ''
-                  }`}
-                  title="Focus Mode"
-                >
-                  <span className="text-[6.5px] font-pixel-heading font-bold text-zinc-200">FOC</span>
-                </button>
-                <button
-                  onClick={() => onSwitchMode('shortBreak')}
-                  className={`w-9 h-6 rounded-md bg-gradient-to-b from-[#2b2d38] to-[#12131a] border border-[#4a4d60] shadow-[0_3px_6px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.3)] flex items-center justify-center cursor-pointer active:scale-95 transition-all ${
-                    mode === 'shortBreak' ? 'ring-2 ring-[#ff3823]' : ''
-                  }`}
-                  title="Break Mode"
-                >
-                  <span className="text-[6.5px] font-pixel-heading font-bold text-zinc-200">BRK</span>
-                </button>
+            {/* Top Row: Dial Knob for Audio Control + Quick Mode Indicators */}
+            <div className="flex items-center justify-between px-1 mb-1.5">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[6.5px] sm:text-[7px] font-pixel-heading font-black text-zinc-700 uppercase">
+                  AUDIO LEVEL
+                </span>
+                <div className="flex items-center gap-1">
+                  <span className={`w-1.5 h-1.5 rounded-full ${settings.soundEnabled ? 'bg-[#ff3823]' : 'bg-zinc-400'}`} />
+                  <span className="text-[6px] sm:text-[6.5px] font-pixel-label text-zinc-600 font-bold">
+                    {settings.soundEnabled ? `${Math.round(settings.soundVolume * 100)}%` : 'MUTED'}
+                  </span>
+                </div>
               </div>
 
-              {/* Middle Top: Minimal Spacer */}
-              <div className="flex-1" />
-
-              {/* Right Top: Big Tactile Rotary Dial Knob (Camera lens style) */}
+              {/* Tactile Rotary Dial Knob (Click to cycle volume) */}
               <button
-                onClick={() => {
-                  onUpdateSettings({ soundVolume: settings.soundVolume >= 0.8 ? 0.3 : settings.soundVolume + 0.3 });
-                }}
-                className="w-14 h-14 rounded-full bg-gradient-to-b from-[#2d303d] to-[#0e1017] border-[3px] border-[#454859] p-1.5 shadow-[0_4px_10px_rgba(0,0,0,0.6),inset_0_2px_4px_rgba(255,255,255,0.2)] flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition-all group shrink-0"
-                title="Dial Knob (Click to adjust sound volume)"
+                onClick={handleVolumeCycle}
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-b from-[#2d303d] to-[#0e1017] border-[2px] border-[#454859] p-0.5 shadow-[0_2px_5px_rgba(0,0,0,0.6),inset_0_1px_2px_rgba(255,255,255,0.2)] flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition-all group shrink-0"
+                title="Dial Knob (Click to cycle volume/mute)"
               >
                 <div className="w-full h-full rounded-full bg-gradient-to-br from-[#1b1c24] to-[#0a0b0e] border border-[#333748] flex items-center justify-center shadow-inner">
-                  <div className="w-3 h-3 rounded-full bg-[#ff3823] shadow-[0_0_6px_#ff3823] group-hover:scale-110 transition-transform" />
+                  <div className={`w-2 h-2 rounded-full transition-transform ${settings.soundEnabled ? 'bg-[#ff3823] shadow-[0_0_5px_#ff3823]' : 'bg-zinc-600'}`} />
                 </div>
               </button>
-
             </div>
 
-            {/* Lower Controls Row: Tactile Cross D-PAD on Left + Triple Action Pills on Right */}
-            <div className="flex items-center justify-between mt-3 px-1">
+            {/* Lower Controls Row: Plus D-PAD on Left + Distinct Action Pills on Right */}
+            <div className="flex items-center justify-between px-0.5 sm:px-1">
               
-              {/* Left Side: Tactile Game Cross D-PAD (PLUS SHAPED) */}
-              <div className="relative w-24 h-24 flex items-center justify-center">
-                {/* D-Pad Base Circle Shadow */}
-                <div className="absolute inset-0 rounded-full bg-[#b2b6c7]/60 shadow-inner" />
+              {/* Left Side: Tactile Plus D-PAD with 4 Distinct Operational Buttons */}
+              <div className="flex flex-col items-center">
+                <div className="relative w-20 h-20 sm:w-22 sm:h-22 flex items-center justify-center">
+                  {/* D-Pad Base Circle Shadow */}
+                  <div className="absolute inset-0 rounded-full bg-[#b2b6c7]/60 shadow-inner" />
 
-                {/* The Cross Button */}
-                <div className="relative w-20 h-20">
-                  {/* Up Button */}
-                  <button
-                    onClick={() => handleDpad('up')}
-                    className={`absolute top-0 left-6.5 w-7 h-7 rounded-t-md bg-gradient-to-b from-[#2d2f3b] to-[#14151b] border-t border-x border-[#4b4f63] shadow-[0_3px_5px_rgba(0,0,0,0.5)] flex items-center justify-center cursor-pointer active:brightness-125 transition-all ${
-                      dpadActiveDir === 'up' ? 'scale-95 bg-[#ff3823]' : ''
-                    }`}
-                    title="Add 5 Minutes"
-                  >
-                    <span className="text-[7.5px] font-bold text-zinc-300">▲</span>
-                  </button>
+                  {/* The Cross Button */}
+                  <div className="relative w-18 h-18 sm:w-19 sm:h-19">
+                    {/* Up: +5 MIN */}
+                    <button
+                      onClick={() => handleDpad('up')}
+                      className={`absolute top-0 left-6 sm:left-6.5 w-6 sm:w-6.5 h-6 sm:h-6.5 rounded-t-md bg-gradient-to-b from-[#2d2f3b] to-[#14151b] border-t border-x border-[#4b4f63] shadow-[0_2px_4px_rgba(0,0,0,0.5)] flex flex-col items-center justify-center cursor-pointer active:brightness-125 transition-all ${
+                        dpadActiveDir === 'up' ? 'scale-95 bg-[#ff3823]' : ''
+                      }`}
+                      title="Add 5 Minutes (+5M)"
+                    >
+                      <Plus size={8} className="text-[#39d353]" />
+                      <span className="text-[5px] font-bold text-zinc-300 -mt-0.5">+5M</span>
+                    </button>
 
-                  {/* Down Button */}
-                  <button
-                    onClick={() => handleDpad('down')}
-                    className={`absolute bottom-0 left-6.5 w-7 h-7 rounded-b-md bg-gradient-to-t from-[#2d2f3b] to-[#14151b] border-b border-x border-[#4b4f63] shadow-[0_3px_5px_rgba(0,0,0,0.5)] flex items-center justify-center cursor-pointer active:brightness-125 transition-all ${
-                      dpadActiveDir === 'down' ? 'scale-95 bg-[#ff3823]' : ''
-                    }`}
-                    title="Reset / Adjust"
-                  >
-                    <span className="text-[7.5px] font-bold text-zinc-300">▼</span>
-                  </button>
+                    {/* Down: -5 MIN */}
+                    <button
+                      onClick={() => handleDpad('down')}
+                      className={`absolute bottom-0 left-6 sm:left-6.5 w-6 sm:w-6.5 h-6 sm:h-6.5 rounded-b-md bg-gradient-to-t from-[#2d2f3b] to-[#14151b] border-b border-x border-[#4b4f63] shadow-[0_2px_4px_rgba(0,0,0,0.5)] flex flex-col items-center justify-center cursor-pointer active:brightness-125 transition-all ${
+                        dpadActiveDir === 'down' ? 'scale-95 bg-[#ff3823]' : ''
+                      }`}
+                      title="Subtract 5 Minutes (-5M)"
+                    >
+                      <Minus size={8} className="text-amber-400" />
+                      <span className="text-[5px] font-bold text-zinc-300 -mt-0.5">-5M</span>
+                    </button>
 
-                  {/* Left Button */}
-                  <button
-                    onClick={() => handleDpad('left')}
-                    className={`absolute left-0 top-6.5 w-7 h-7 rounded-l-md bg-gradient-to-r from-[#2d2f3b] to-[#14151b] border-l border-y border-[#4b4f63] shadow-[0_3px_5px_rgba(0,0,0,0.5)] flex items-center justify-center cursor-pointer active:brightness-125 transition-all ${
-                      dpadActiveDir === 'left' ? 'scale-95 bg-[#ff3823]' : ''
-                    }`}
-                    title="Short Break Mode"
-                  >
-                    <span className="text-[7.5px] font-bold text-zinc-300">◀</span>
-                  </button>
+                    {/* Left: RESET */}
+                    <button
+                      onClick={() => handleDpad('left')}
+                      className={`absolute left-0 top-6 sm:top-6.5 w-6 sm:w-6.5 h-6 sm:h-6.5 rounded-l-md bg-gradient-to-r from-[#2d2f3b] to-[#14151b] border-l border-y border-[#4b4f63] shadow-[0_2px_4px_rgba(0,0,0,0.5)] flex flex-col items-center justify-center cursor-pointer active:brightness-125 transition-all ${
+                        dpadActiveDir === 'left' ? 'scale-95 bg-[#ff3823]' : ''
+                      }`}
+                      title="Reset Timer"
+                    >
+                      <RotateCcw size={7.5} className="text-zinc-300" />
+                      <span className="text-[4.5px] font-bold text-zinc-300">RST</span>
+                    </button>
 
-                  {/* Right Button */}
-                  <button
-                    onClick={() => handleDpad('right')}
-                    className={`absolute right-0 top-6.5 w-7 h-7 rounded-r-md bg-gradient-to-l from-[#2d2f3b] to-[#14151b] border-r border-y border-[#4b4f63] shadow-[0_3px_5px_rgba(0,0,0,0.5)] flex items-center justify-center cursor-pointer active:brightness-125 transition-all ${
-                      dpadActiveDir === 'right' ? 'scale-95 bg-[#ff3823]' : ''
-                    }`}
-                    title="Focus Mode"
-                  >
-                    <span className="text-[7.5px] font-bold text-zinc-300">▶</span>
-                  </button>
+                    {/* Right: SKIP */}
+                    <button
+                      onClick={() => handleDpad('right')}
+                      className={`absolute right-0 top-6 sm:top-6.5 w-6 sm:w-6.5 h-6 sm:h-6.5 rounded-r-md bg-gradient-to-l from-[#2d2f3b] to-[#14151b] border-r border-y border-[#4b4f63] shadow-[0_2px_4px_rgba(0,0,0,0.5)] flex flex-col items-center justify-center cursor-pointer active:brightness-125 transition-all ${
+                        dpadActiveDir === 'right' ? 'scale-95 bg-[#ff3823]' : ''
+                      }`}
+                      title="Skip to Next Session"
+                    >
+                      <SkipForward size={7.5} className="text-zinc-300" />
+                      <span className="text-[4.5px] font-bold text-zinc-300">SKP</span>
+                    </button>
 
-                  {/* Center of Cross */}
-                  <div className="absolute top-6.5 left-6.5 w-7 h-7 bg-[#1c1d25] border border-[#373a4b]" />
+                    {/* Center of Cross */}
+                    <div className="absolute top-6 sm:top-6.5 left-6 sm:left-6.5 w-6 sm:w-6.5 h-6 sm:h-6.5 bg-[#1c1d25] border border-[#373a4b] flex items-center justify-center">
+                      <div className="w-1.5 h-1.5 rounded-full bg-[#ff3823]/60" />
+                    </div>
+                  </div>
                 </div>
+                <span className="text-[6px] font-pixel-heading text-zinc-600 font-bold mt-0.5">
+                  D-PAD CONTROL
+                </span>
               </div>
 
-              {/* Center Vertical LED & Status Pins from image */}
-              <div className="flex flex-col items-center gap-1 opacity-70">
-                <div className="w-1.5 h-1.5 rounded-full bg-zinc-700" />
-                <div className="w-1.5 h-1.5 rounded-full bg-zinc-700" />
-                <div className="w-1.5 h-1.5 rounded-full bg-zinc-700" />
+              {/* Center Decorative Divider */}
+              <div className="flex flex-col items-center gap-1 opacity-50">
+                <div className="w-1 h-1 rounded-full bg-zinc-700" />
+                <div className="w-1 h-1 rounded-full bg-zinc-700" />
+                <div className="w-1 h-1 rounded-full bg-zinc-700" />
               </div>
 
-              {/* Right Side: Triple Stacked Action Pill Buttons (From photo: START/PAUSE, RESET, SKIP) */}
+              {/* Right Side: 3 Distinct Dedicated Action Pill Buttons */}
               <div className="flex flex-col gap-1.5 shrink-0">
-                {/* START / PAUSE Pill Button */}
+                {/* 1. START / PAUSE Pill Button */}
                 <button
                   onClick={isRunning ? onPause : onStart}
-                  className={`w-20 h-6 rounded-full px-2 bg-gradient-to-b from-[#2b2d38] to-[#101117] border border-[#474a5e] shadow-[0_3px_6px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.3)] flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all ${
+                  className={`w-22 sm:w-24 h-6.5 rounded-full px-2 bg-gradient-to-b from-[#2b2d38] to-[#101117] border border-[#474a5e] shadow-[0_2px_5px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.3)] flex items-center justify-center gap-1 cursor-pointer active:scale-95 transition-all ${
                     isRunning ? 'ring-2 ring-[#ff3823]' : 'hover:border-[#ff3823]'
                   }`}
+                  title="Toggle Timer Start / Pause"
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-[#ff3823] shadow-[0_0_6px_#ff3823]' : 'bg-[#39d353]'}`} />
-                  <span className="text-[7px] font-pixel-heading font-black text-white">
+                  <span className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-[#ff3823] shadow-[0_0_5px_#ff3823]' : 'bg-[#39d353]'}`} />
+                  <span className="text-[7px] sm:text-[7.5px] font-pixel-heading font-black text-white">
                     {isRunning ? 'PAUSE' : 'START'}
                   </span>
                 </button>
 
-                {/* RESET Pill Button */}
+                {/* 2. FOCUS MODE Pill Button */}
                 <button
-                  onClick={onReset}
-                  className="w-20 h-6 rounded-full px-2 bg-gradient-to-b from-[#2b2d38] to-[#101117] border border-[#474a5e] shadow-[0_3px_6px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.3)] flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 hover:border-zinc-300 transition-all"
+                  onClick={() => onSwitchMode('focus')}
+                  className={`w-22 sm:w-24 h-5.5 rounded-full px-2 bg-gradient-to-b from-[#2b2d38] to-[#101117] border border-[#474a5e] shadow-[0_2px_5px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.3)] flex items-center justify-center gap-1 cursor-pointer active:scale-95 transition-all ${
+                    mode === 'focus' ? 'border-[#ff3823] bg-[#ff3823]/10 text-[#ff3823]' : 'text-zinc-300 hover:border-zinc-400'
+                  }`}
+                  title="Switch to Focus Mode"
                 >
-                  <span className="text-[7px] font-pixel-heading font-bold text-zinc-300">
-                    RESET
+                  <span className="text-[6.5px] sm:text-[7px] font-pixel-heading font-bold">
+                    FOCUS (25M)
                   </span>
                 </button>
 
-                {/* SKIP Pill Button */}
+                {/* 3. BREAK MODE Pill Button */}
                 <button
-                  onClick={onSkip}
-                  className="w-20 h-6 rounded-full px-2 bg-gradient-to-b from-[#2b2d38] to-[#101117] border border-[#474a5e] shadow-[0_3px_6px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.3)] flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 hover:border-zinc-300 transition-all"
+                  onClick={() => onSwitchMode('shortBreak')}
+                  className={`w-22 sm:w-24 h-5.5 rounded-full px-2 bg-gradient-to-b from-[#2b2d38] to-[#101117] border border-[#474a5e] shadow-[0_2px_5px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.3)] flex items-center justify-center gap-1 cursor-pointer active:scale-95 transition-all ${
+                    mode === 'shortBreak' ? 'border-[#ff3823] bg-[#ff3823]/10 text-[#ff3823]' : 'text-zinc-300 hover:border-zinc-400'
+                  }`}
+                  title="Switch to Break Mode"
                 >
-                  <span className="text-[7px] font-pixel-heading font-bold text-zinc-300">
-                    SKIP
+                  <span className="text-[6.5px] sm:text-[7px] font-pixel-heading font-bold">
+                    BREAK (5M)
                   </span>
                 </button>
               </div>
 
             </div>
 
-            {/* Red Square Action Button (Bottom Left, like in image) */}
-            <div className="flex items-center justify-between mt-2 pt-1 border-t border-[#c6c9d7]">
-              <div className="flex items-center gap-2">
+            {/* Bottom Primary Trigger Button */}
+            <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-[#c6c9d7]">
+              <div className="flex items-center gap-1.5">
                 <button
                   onClick={handleRedButton}
-                  className={`w-7 h-7 rounded-md bg-gradient-to-b from-[#ff3823] to-[#b81708] border border-[#ff7060] shadow-[0_3px_6px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.4)] flex items-center justify-center cursor-pointer active:scale-90 transition-all ${
+                  className={`w-6 h-6 sm:w-6.5 sm:h-6.5 rounded-md bg-gradient-to-b from-[#ff3823] to-[#b81708] border border-[#ff7060] shadow-[0_2px_5px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.4)] flex items-center justify-center cursor-pointer active:scale-90 transition-all ${
                     redBtnPressed ? 'scale-90 brightness-125' : ''
                   }`}
-                  title="Primary Action Button"
+                  title="Quick Start / Pause Trigger"
                 >
-                  <span className="w-2 h-2 rounded-xs bg-white/80" />
+                  <span className="w-1.5 h-1.5 rounded-xs bg-white/80" />
                 </button>
-                <span className="text-[6.5px] font-pixel-heading text-zinc-600 font-bold">
-                  PRIMARY ACT
+                <span className="text-[6px] sm:text-[6.5px] font-pixel-heading text-zinc-600 font-bold">
+                  PRIMARY TRIGGER
                 </span>
               </div>
 
-              <div className="text-[6.5px] font-pixel-label text-zinc-500 font-bold uppercase">
+              <div className="text-[6px] sm:text-[6.5px] font-pixel-label text-zinc-500 font-bold uppercase">
                 SPACE: {isRunning ? 'PAUSE' : 'START'} • ESC: EXIT
               </div>
             </div>
 
           </div>
-
-
 
         </div>
 
