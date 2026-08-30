@@ -1,0 +1,83 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and top-level settings",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "settings": { "type": "object" },
+        "countdownGoal": { "type": "object" },
+        "habitLogs": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid"]
+    },
+    "Session": {
+      "title": "Session",
+      "description": "Completed pomodoro focus sessions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "date": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "durationMinutes": { "type": "number" },
+        "mode": { "type": "string" },
+        "taskTitle": { "type": "string" },
+        "completed": { "type": "boolean" }
+      },
+      "required": ["id", "userId", "date", "timestamp", "durationMinutes", "completed"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "User daily quests and tasks",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "completed": { "type": "boolean" },
+        "estimatedPomodoros": { "type": "number" },
+        "completedPomodoros": { "type": "number" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "userId", "title", "completed", "createdAt"]
+    },
+    "Habit": {
+      "title": "Habit",
+      "description": "User habit tracking items",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "number": { "type": "number" },
+        "title": { "type": "string" },
+        "targetDays": { "type": "number" },
+        "color": { "type": "string" }
+      },
+      "required": ["id", "userId", "number", "title"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "Stores user settings, goals, and aggregate profile data"
+    },
+    "users/{userId}/sessions/{sessionId}": {
+      "schema": "Session",
+      "description": "Stores user focus timer sessions"
+    },
+    "users/{userId}/tasks/{taskId}": {
+      "schema": "Task",
+      "description": "Stores user tasks and quests"
+    },
+    "users/{userId}/habits/{habitId}": {
+      "schema": "Habit",
+      "description": "Stores user habits"
+    }
+  }
+}

@@ -1,23 +1,37 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Settings, CheckCircle2, Moon, Sparkles, RefreshCw } from 'lucide-react';
-import { TimerMode, AppSettings, PomodoroSession, TaskItem, DayLog, HabitItem, HabitProgressRecord } from './types';
+import { Settings, LogIn, LogOut, User as UserIcon, Cloud, Smartphone, AlertCircle } from 'lucide-react';
+import { TimerMode, AppSettings, PomodoroSession, TaskItem, DayLog, HabitItem, HabitProgressRecord, CountdownGoal } from './types';
 import {
-  loadSettings,
-  saveSettings,
-  loadSessions,
-  saveSessions,
-  loadTasks,
-  saveTasks,
-  loadHabits,
-  saveHabits,
-  loadHabitLogs,
-  saveHabitLogs,
   formatDateKey,
   aggregateDayLogs,
   calculateStreakStats,
   DEFAULT_SETTINGS,
+  DEFAULT_HABITS,
 } from './utils/storage';
 import { cleanAudio } from './utils/audio';
+import {
+  auth,
+  loginWithGoogle,
+  logoutUser,
+  onAuthStateChanged,
+  User,
+} from './lib/firebase';
+import {
+  initializeUserData,
+  subscribeUserDoc,
+  subscribeSessions,
+  subscribeTasks,
+  subscribeHabits,
+  saveSessionToFirestore,
+  saveTaskToFirestore,
+  deleteTaskFromFirestore,
+  saveHabitsToFirestore,
+  saveHabitLogsToFirestore,
+  saveSettingsToFirestore,
+  saveCountdownGoalToFirestore,
+  resetUserDataInFirestore,
+  DEFAULT_COUNTDOWN_GOAL,
+} from './services/firestoreService';
 import { PixelTimer } from './components/PixelTimer';
 import { ExamCountdownCard } from './components/ExamCountdownCard';
 import { ConsistencyHeatmap } from './components/ConsistencyHeatmap';
@@ -27,37 +41,26 @@ import { SettingsModal } from './components/SettingsModal';
 import { DayDetailsModal } from './components/DayDetailsModal';
 import { RetroConsoleFocus } from './components/RetroConsoleFocus';
 import { InstallApkModal } from './components/InstallApkModal';
-import { Smartphone } from 'lucide-react';
-import { CountdownGoal } from './types';
-
-const DEFAULT_COUNTDOWN_GOAL: CountdownGoal = {
-  id: 'goal-exam-october',
-  title: 'UKSSSC Exam',
-  targetDate: '2026-10-05',
-  startDate: '2026-08-01',
-  description: 'Exam Countdown & Milestone Tracker',
-  color: '#ff3b00',
-};
 
 export const App: React.FC = () => {
+  // Authentication state
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState<boolean>(true);
+  const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+
   // Persistence state
-  const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
-  const [sessions, setSessions] = useState<PomodoroSession[]>(() => loadSessions());
-  const [tasks, setTasks] = useState<TaskItem[]>(() => loadTasks());
-  const [habits, setHabits] = useState<HabitItem[]>(() => loadHabits());
-  const [habitLogs, setHabitLogs] = useState<HabitProgressRecord>(() => loadHabitLogs());
-  const [countdownGoal, setCountdownGoal] = useState<CountdownGoal>(() => {
-    try {
-      const saved = localStorage.getItem('praxis_countdown_goal');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
-    return DEFAULT_COUNTDOWN_GOAL;
-  });
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [sessions, setSessions] = useState<PomodoroSession[]>([]);
+  const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [habits, setHabits] = useState<HabitItem[]>(DEFAULT_HABITS);
+  const [habitLogs, setHabitLogs] = useState<HabitProgressRecord>({});
+  const [countdownGoal, setCountdownGoal] = useState<CountdownGoal>(DEFAULT_COUNTDOWN_GOAL);
 
   // Timer dynamic state
   const [mode, setMode] = useState<TimerMode>('focus');
-  const [timeLeft, setTimeLeft] = useState<number>(() => settings.focusDuration * 60);
-  const [totalTime, setTotalTime] = useState<number>(() => settings.focusDuration * 60);
+  const [timeLeft, setTimeLeft] = useState<number>(() => DEFAULT_SETTINGS.focusDuration * 60);
+  const [totalTime, setTotalTime] = useState<number>(() => DEFAULT_SETTINGS.focusDuration * 60);
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [completedCycles, setCompletedCycles] = useState<number>(0);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
@@ -75,34 +78,101 @@ export const App: React.FC = () => {
   // Audio & Notification Ref
   const timerIntervalRef = useRef<number | null>(null);
 
-  // Save changes to storage
+  // ---------------------------------------------------------------------------
+  // Firebase Auth State Listener & Firestore Real-Time Data Sync
+  // ---------------------------------------------------------------------------
   useEffect(() => {
-    saveSettings(settings);
-  }, [settings]);
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      setCurrentUser(user);
+      setAuthLoading(false);
 
-  useEffect(() => {
-    saveSessions(sessions);
-  }, [sessions]);
+      if (user) {
+        // User logged in: Initialize user document if new & load their Firestore collections
+        try {
+          await initializeUserData(user.uid, {
+            displayName: user.displayName,
+            email: user.email,
+            photoURL: user.photoURL,
+          });
+        } catch (e) {
+          console.error('Failed initializing user doc:', e);
+        }
+      } else {
+        // User logged out: Reset UI state to empty/blank state
+        setSessions([]);
+        setTasks([]);
+        setHabits([]);
+        setHabitLogs({});
+        setSettings(DEFAULT_SETTINGS);
+        setCountdownGoal(DEFAULT_COUNTDOWN_GOAL);
+        setActiveTaskId(null);
+        setCompletedCycles(0);
+        setIsRunning(false);
+        setTimeLeft(DEFAULT_SETTINGS.focusDuration * 60);
+        setTotalTime(DEFAULT_SETTINGS.focusDuration * 60);
+      }
+    });
 
-  useEffect(() => {
-    saveTasks(tasks);
-  }, [tasks]);
+    return () => unsubscribeAuth();
+  }, []);
 
+  // Subscribe to user collections when currentUser changes
   useEffect(() => {
-    saveHabits(habits);
-  }, [habits]);
+    if (!currentUser) return;
 
-  useEffect(() => {
-    saveHabitLogs(habitLogs);
-  }, [habitLogs]);
+    const uid = currentUser.uid;
 
-  useEffect(() => {
+    // 1. Subscribe to User top-level doc (settings, countdownGoal, habitLogs)
+    const unsubUserDoc = subscribeUserDoc(uid, (data) => {
+      if (data.settings) setSettings(data.settings);
+      if (data.countdownGoal) setCountdownGoal(data.countdownGoal);
+      if (data.habitLogs) setHabitLogs(data.habitLogs);
+    });
+
+    // 2. Subscribe to Sessions subcollection
+    const unsubSessions = subscribeSessions(uid, (cloudSessions) => {
+      setSessions(cloudSessions);
+    });
+
+    // 3. Subscribe to Tasks subcollection
+    const unsubTasks = subscribeTasks(uid, (cloudTasks) => {
+      setTasks(cloudTasks);
+    });
+
+    // 4. Subscribe to Habits subcollection
+    const unsubHabits = subscribeHabits(uid, (cloudHabits) => {
+      setHabits(cloudHabits);
+    });
+
+    return () => {
+      unsubUserDoc();
+      unsubSessions();
+      unsubTasks();
+      unsubHabits();
+    };
+  }, [currentUser]);
+
+  // Auth Handlers
+  const handleGoogleLogin = async () => {
     try {
-      localStorage.setItem('praxis_countdown_goal', JSON.stringify(countdownGoal));
-    } catch (e) {
-      console.error('Failed to save countdown goal', e);
+      setIsLoggingIn(true);
+      setLoginError(null);
+      await loginWithGoogle();
+    } catch (err: any) {
+      console.error('Login failed:', err);
+      setLoginError(err?.message || 'Login failed. Please try again.');
+    } finally {
+      setIsLoggingIn(false);
     }
-  }, [countdownGoal]);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
+  };
 
   // Update total duration when mode or settings change and timer is stopped
   const switchMode = (newMode: TimerMode, autoStart = false) => {
@@ -182,15 +252,23 @@ export const App: React.FC = () => {
 
       setSessions((prev) => [...prev, newSession]);
 
+      // Cloud Firestore Persistence
+      if (currentUser) {
+        saveSessionToFirestore(currentUser.uid, newSession);
+      }
+
       // Update associated active task if any
       if (activeTaskId) {
-        setTasks((prev) =>
-          prev.map((t) =>
-            t.id === activeTaskId
-              ? { ...t, completedPomodoros: t.completedPomodoros + 1 }
-              : t
-          )
-        );
+        const updatedTask = tasks.find((t) => t.id === activeTaskId);
+        if (updatedTask) {
+          const newTaskObj = { ...updatedTask, completedPomodoros: updatedTask.completedPomodoros + 1 };
+          setTasks((prev) =>
+            prev.map((t) => (t.id === activeTaskId ? newTaskObj : t))
+          );
+          if (currentUser) {
+            saveTaskToFirestore(currentUser.uid, newTaskObj);
+          }
+        }
       }
 
       const nextCycleCount = completedCycles + 1;
@@ -245,6 +323,9 @@ export const App: React.FC = () => {
   const handleUpdateSettings = (newPartial: Partial<AppSettings>) => {
     const updated = { ...settings, ...newPartial };
     setSettings(updated);
+    if (currentUser) {
+      saveSettingsToFirestore(currentUser.uid, updated);
+    }
     if (!isRunning) {
       if (mode === 'focus') {
         setTimeLeft(updated.focusDuration * 60);
@@ -256,6 +337,13 @@ export const App: React.FC = () => {
         setTimeLeft(updated.longBreakDuration * 60);
         setTotalTime(updated.longBreakDuration * 60);
       }
+    }
+  };
+
+  const handleUpdateCountdownGoal = (newGoal: CountdownGoal) => {
+    setCountdownGoal(newGoal);
+    if (currentUser) {
+      saveCountdownGoalToFirestore(currentUser.uid, newGoal);
     }
   };
 
@@ -273,11 +361,23 @@ export const App: React.FC = () => {
     if (!activeTaskId) {
       setActiveTaskId(newTask.id);
     }
+    if (currentUser) {
+      saveTaskToFirestore(currentUser.uid, newTask);
+    }
   };
 
   const handleToggleTask = (taskId: string) => {
     setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, completed: !t.completed } : t))
+      prev.map((t) => {
+        if (t.id === taskId) {
+          const updated = { ...t, completed: !t.completed };
+          if (currentUser) {
+            saveTaskToFirestore(currentUser.uid, updated);
+          }
+          return updated;
+        }
+        return t;
+      })
     );
   };
 
@@ -285,6 +385,9 @@ export const App: React.FC = () => {
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
     if (activeTaskId === taskId) {
       setActiveTaskId(null);
+    }
+    if (currentUser) {
+      deleteTaskFromFirestore(currentUser.uid, taskId);
     }
   };
 
@@ -298,18 +401,27 @@ export const App: React.FC = () => {
         ? currentList.filter((d) => d !== day)
         : [...currentList, day].sort((a, b) => a - b);
 
-      return {
+      const newLogs = {
         ...prev,
         [monthKey]: {
           ...monthObj,
           [habitId]: updatedList,
         },
       };
+
+      if (currentUser) {
+        saveHabitLogsToFirestore(currentUser.uid, newLogs);
+      }
+
+      return newLogs;
     });
   };
 
   const handleUpdateHabits = (newHabits: HabitItem[]) => {
     setHabits(newHabits);
+    if (currentUser) {
+      saveHabitsToFirestore(currentUser.uid, newHabits);
+    }
   };
 
   const handleResetAllData = () => {
@@ -319,48 +431,150 @@ export const App: React.FC = () => {
     setCompletedCycles(0);
     setActiveTaskId(null);
     handleReset();
+    if (currentUser) {
+      resetUserDataInFirestore(currentUser.uid);
+    }
   };
 
   const activeTask = tasks.find((t) => t.id === activeTaskId);
+  const userFirstName = currentUser?.displayName
+    ? currentUser.displayName.split(' ')[0].toUpperCase()
+    : 'PILOT';
 
   return (
     <div className="min-h-screen bg-[#070709] text-zinc-100 flex flex-col justify-between selection:bg-[#ff3b00] selection:text-black">
       
       {/* Top Navigation Bar */}
       <header className="border-b-2 border-[#242630] bg-[#0e0f14]/90 backdrop-blur-md sticky top-0 z-40">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between font-pixel-heading">
+        <div className="max-w-4xl mx-auto px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between font-pixel-heading gap-2">
           
-          <div className="flex items-center gap-3">
-            {/* Chunky 3D Pixel Logo from reference image */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {/* Chunky 3D Pixel Logo */}
             <div className="flex items-center gap-2 select-none group cursor-default">
-              <span className="font-pixel-chunky text-lg sm:text-2xl font-bold lowercase tracking-normal transition-transform duration-100 hover:scale-105">
+              <span className="font-pixel-chunky text-base sm:text-2xl font-bold lowercase tracking-normal transition-transform duration-100 hover:scale-105">
                 praxis
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            
+            {/* Google Authentication Control */}
+            {authLoading ? (
+              <div className="bg-[#181a24] text-zinc-500 border border-[#272a38] px-2 py-1 text-[7.5px] sm:text-[8px] flex items-center gap-1 font-pixel-label">
+                <span>CONNECTING...</span>
+              </div>
+            ) : currentUser ? (
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                {/* User Profile Pill */}
+                <div className="flex items-center gap-1.5 bg-[#13151f] border border-[#242738] px-2 py-1 rounded-sm">
+                  {currentUser.photoURL ? (
+                    <img
+                      src={currentUser.photoURL}
+                      alt={currentUser.displayName || 'User'}
+                      referrerPolicy="no-referrer"
+                      className="w-4 h-4 rounded-full border border-[#ff3b00]/60 object-cover shrink-0"
+                    />
+                  ) : (
+                    <div className="w-4 h-4 rounded-full bg-[#ff3b00]/20 text-[#ff3b00] border border-[#ff3b00]/60 flex items-center justify-center text-[7px] font-bold shrink-0">
+                      {userFirstName.charAt(0)}
+                    </div>
+                  )}
+                  <span className="text-[7.5px] sm:text-[8px] font-pixel-heading text-zinc-200 tracking-wider max-w-[70px] sm:max-w-none truncate">
+                    {userFirstName}
+                  </span>
+                </div>
+
+                {/* Logout Button */}
+                <button
+                  onClick={handleLogout}
+                  className="bg-[#181a24] hover:bg-red-950/40 hover:border-red-500 hover:text-red-400 text-zinc-400 border border-[#272a38] px-2 sm:px-2.5 py-1 sm:py-1.5 text-[7.5px] sm:text-[8px] flex items-center gap-1 cursor-pointer transition-all font-pixel-heading uppercase"
+                  title="Sign out of Google Account"
+                >
+                  <LogOut size={11} />
+                  <span className="hidden sm:inline">LOGOUT</span>
+                </button>
+              </div>
+            ) : (
+              /* Login With Google Button (Retro Neon Orange Aesthetic - Responsive) */
+              <button
+                onClick={handleGoogleLogin}
+                disabled={isLoggingIn}
+                className="bg-[#181a24] hover:bg-[#ff3b00] hover:text-black text-[#ff3b00] border border-[#ff3b00] px-2 sm:px-3 py-1 sm:py-1.5 text-[7.5px] sm:text-[8px] flex items-center gap-1.5 sm:gap-2 cursor-pointer shadow-[0_0_8px_rgba(255,59,0,0.2)] hover:shadow-[0_0_14px_rgba(255,59,0,0.6)] transition-all font-pixel-heading uppercase tracking-wider group shrink-0"
+                title="Login with Google to sync sessions & habits across devices"
+              >
+                {/* SVG Google 'G' Icon */}
+                <svg className="w-3 h-3 transition-transform group-hover:scale-110 shrink-0" viewBox="0 0 24 24">
+                  <path
+                    fill="currentColor"
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                  />
+                  <path
+                    fill="currentColor"
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  />
+                  <path
+                    fill="currentColor"
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                  />
+                  <path
+                    fill="currentColor"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                  />
+                </svg>
+                <span>{isLoggingIn ? '...' : 'LOGIN'}<span className="hidden sm:inline"> WITH GOOGLE</span></span>
+              </button>
+            )}
+
             <button
               onClick={() => setIsInstallModalOpen(true)}
-              className="bg-[#181a24] hover:bg-[#ff3b00] hover:text-black text-[#ff3b00] border border-[#ff3b00]/70 px-2.5 py-1.5 text-[8px] flex items-center gap-1.5 cursor-pointer shadow-xs transition-all font-pixel-label uppercase"
+              className="bg-[#181a24] hover:bg-[#ff3b00] hover:text-black text-[#ff3b00] border border-[#ff3b00]/70 px-2 sm:px-2.5 py-1 sm:py-1.5 text-[7.5px] sm:text-[8px] flex items-center gap-1 sm:gap-1.5 cursor-pointer shadow-xs transition-all font-pixel-label uppercase"
               title="Download / Install Android App (APK)"
             >
-              <Smartphone size={12} />
+              <Smartphone size={11} />
               <span className="hidden sm:inline">GET ANDROID APP</span>
             </button>
 
             <button
               onClick={() => setIsSettingsOpen(true)}
-              className="pixel-btn-dark px-3 py-1.5 text-[8px] flex items-center gap-1.5 cursor-pointer"
+              className="pixel-btn-dark px-2 sm:px-3 py-1 sm:py-1.5 text-[7.5px] sm:text-[8px] flex items-center gap-1 sm:gap-1.5 cursor-pointer"
               title="Open System Preferences"
             >
-              <Settings size={12} />
+              <Settings size={11} />
               <span className="hidden sm:inline font-pixel-label">SETTINGS</span>
             </button>
           </div>
 
         </div>
       </header>
+
+      {/* Login Error Notification Banner if any */}
+      {loginError && (
+        <div className="bg-red-950/80 border-b border-red-800/80 text-red-200 px-4 py-2 text-center text-[8px] font-pixel-label flex items-center justify-center gap-2">
+          <AlertCircle size={12} className="text-red-400" />
+          <span>{loginError}</span>
+          <button
+            onClick={() => setLoginError(null)}
+            className="ml-3 underline text-red-400 hover:text-white cursor-pointer"
+          >
+            DISMISS
+          </button>
+        </div>
+      )}
+
+      {/* Guest Mode Notification Pill when logged out */}
+      {!authLoading && !currentUser && (
+        <div className="bg-[#10121a] border-b border-[#212433] px-4 py-1.5 text-center text-[7.5px] font-pixel-label text-zinc-400 flex items-center justify-center gap-2">
+          <span className="text-[#ff3b00] font-bold">[!] GUEST MODE:</span>
+          <span>Sign in with Google to persist your timer history, tasks, and streaks directly to Firestore.</span>
+          <button
+            onClick={handleGoogleLogin}
+            className="text-white hover:text-[#ff3b00] underline font-bold cursor-pointer ml-1"
+          >
+            Sign in now →
+          </button>
+        </div>
+      )}
 
       {/* Main Workspace Body */}
       <main className="max-w-4xl mx-auto px-4 py-6 sm:py-8 w-full flex-1 space-y-6">
@@ -377,7 +591,7 @@ export const App: React.FC = () => {
         {/* Exam / Milestone Target Countdown Dot Matrix Card (Positioned right above focused timer) */}
         <ExamCountdownCard
           goal={countdownGoal}
-          onUpdateGoal={setCountdownGoal}
+          onUpdateGoal={handleUpdateCountdownGoal}
         />
 
         {/* Vintage Pixel/Digital Countdown Timer */}
@@ -421,14 +635,9 @@ export const App: React.FC = () => {
       <footer className="border-t-2 border-[#242630] bg-[#0e0f14] py-4 text-center font-pixel-heading text-[8px] text-zinc-500">
         <div className="max-w-4xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2.5">
           <div className="flex flex-col sm:items-start items-center text-center sm:text-left gap-0.5">
-            <span className="text-white font-bold text-[9.5px] tracking-wider">PRAXIS</span>
+            <span className="text-[#d2ff28] font-bold text-[10px] tracking-wider uppercase">praxis</span>
             <span className="text-[7.5px] text-zinc-400 font-pixel-label tracking-normal">
-              By <strong className="text-zinc-200 font-semibold">Zero Sum Commune</strong> • Created by <strong className="text-white font-semibold">Peyush</strong>
-            </span>
-          </div>
-          <div className="flex items-center gap-3 text-zinc-400 font-pixel-label text-[7.5px]">
-            <span className="bg-[#171922] border border-[#272a38] px-2 py-0.5 text-zinc-300">
-              OFFLINE LOCAL PERSISTENCE
+              By <strong className="text-zinc-200 font-semibold">zero-sum commun</strong> • Created by <strong className="text-white font-semibold">Peyush</strong>
             </span>
           </div>
         </div>

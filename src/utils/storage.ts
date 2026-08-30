@@ -7,14 +7,8 @@ const HABITS_KEY = 'pixel_chrono_habits_v2';
 const HABIT_LOGS_KEY = 'pixel_chrono_habit_logs_v2';
 
 export const DEFAULT_HABITS: HabitItem[] = [
-  { id: 'habit-1', number: 1, title: 'Deep Work & Focus', targetDays: 28, color: '#39d353' },
-  { id: 'habit-2', number: 2, title: 'Morning Routine & Reading', targetDays: 25, color: '#26a641' },
-  { id: 'habit-3', number: 3, title: 'Engineering & Problem Solving', targetDays: 26, color: '#00d26a' },
-  { id: 'habit-4', number: 4, title: 'Physical Exercise & Fitness', targetDays: 22, color: '#ff7700' },
-  { id: 'habit-5', number: 5, title: 'Mindfulness & Breathing', targetDays: 25, color: '#00b4d8' },
-  { id: 'habit-6', number: 6, title: 'Skill Development & Practice', targetDays: 24, color: '#a855f7' },
-  { id: 'habit-7', number: 7, title: 'Hydration & Nutrition', targetDays: 30, color: '#38bdf8' },
-  { id: 'habit-8', number: 8, title: 'Sleep Hygiene & Daily Review', targetDays: 28, color: '#f59e0b' },
+  { id: 'habit-1', number: 1, title: 'newspaper', targetDays: 25, color: '#39d353' },
+  { id: 'habit-2', number: 2, title: 'gym', targetDays: 20, color: '#ff7700' },
 ];
 
 export const DEFAULT_SETTINGS: AppSettings = {

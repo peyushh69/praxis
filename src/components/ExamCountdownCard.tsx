@@ -213,17 +213,11 @@ export const ExamCountdownCard: React.FC<ExamCountdownCardProps> = ({
 
     onUpdateGoal({
       ...goal,
-      title: editTitle.trim() || 'Exam / Target Goal',
+      title: editTitle.trim() || 'SET TARGET',
       targetDate: editTargetDate,
       startDate: editStartDate || todayStr,
     });
     setIsEditing(false);
-  };
-
-  const handleSetOctoberExamPreset = () => {
-    setEditStartDate(todayStr);
-    setEditTargetDate(`${currentYear}-10-05`);
-    setEditTitle('UKSSSC Exam');
   };
 
   const handleSetPreset = (days: number, name?: string) => {
@@ -234,6 +228,12 @@ export const ExamCountdownCard: React.FC<ExamCountdownCardProps> = ({
     setEditStartDate(todayStr);
     setEditTargetDate(targetStr);
     if (name) setEditTitle(name);
+  };
+
+  const handleSetYearEndPreset = () => {
+    setEditStartDate(todayStr);
+    setEditTargetDate(`${currentYear}-12-31`);
+    setEditTitle(`Year End ${currentYear}`);
   };
 
   return (
@@ -264,7 +264,7 @@ export const ExamCountdownCard: React.FC<ExamCountdownCardProps> = ({
               <span>{currentYear} TIMELINE</span>
             </button>
 
-            {/* 2nd Tab: UKSSSC / EXAM TARGET */}
+            {/* 2nd Tab: TARGET GOAL / COUNTDOWN */}
             <button
               onClick={() => setActiveSlide(1)}
               className={`px-3 py-1.5 rounded-md text-[8.5px] sm:text-[9px] font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
@@ -274,13 +274,13 @@ export const ExamCountdownCard: React.FC<ExamCountdownCardProps> = ({
               }`}
             >
               <Target size={11} className={activeSlide === 1 ? 'text-black' : 'text-[#ff3b00]'} />
-              <span>{goal.title || 'UKSSSC EXAM'}</span>
+              <span>{goal.title || 'SET TARGET'}</span>
             </button>
           </div>
 
           {/* Slide Controls & Action Buttons */}
           <div className="flex items-center gap-1.5">
-            {/* If on Exam Slide (Slide 1), Show Config Button */}
+            {/* If on Goal Slide (Slide 1), Show Config Button */}
             {activeSlide === 1 && (
               <button
                 onClick={() => {
@@ -290,17 +290,17 @@ export const ExamCountdownCard: React.FC<ExamCountdownCardProps> = ({
                   setIsEditing(!isEditing);
                 }}
                 className="px-2.5 py-1.5 bg-[#141622] hover:bg-[#ff3b00] hover:text-black text-[#ff3b00] border border-[#ff3b00]/60 rounded-md text-[8px] font-bold flex items-center gap-1 cursor-pointer transition-all uppercase"
-                title="Configure Exam Date & Title"
+                title="Configure Target Date & Title"
               >
                 <Calendar size={11} />
-                <span className="hidden sm:inline">{isEditing ? 'CLOSE' : 'SET DATE'}</span>
+                <span className="hidden sm:inline">{isEditing ? 'CLOSE' : 'SET TARGET'}</span>
               </button>
             )}
           </div>
 
         </div>
 
-        {/* Inline Edit Drawer for Exam Goal */}
+        {/* Inline Edit Drawer for Goal */}
         {isEditing && activeSlide === 1 && (
           <form
             onSubmit={handleSave}
@@ -308,7 +308,7 @@ export const ExamCountdownCard: React.FC<ExamCountdownCardProps> = ({
           >
             <div className="flex items-center justify-between border-b border-[#252838] pb-1.5">
               <span className="text-[9px] font-bold text-[#ff3b00] flex items-center gap-1.5 font-pixel-heading">
-                <Target size={12} /> CONFIGURE EXAM / TARGET COUNTDOWN
+                <Target size={12} /> CONFIGURE TARGET COUNTDOWN
               </span>
               <button
                 type="button"
@@ -322,11 +322,11 @@ export const ExamCountdownCard: React.FC<ExamCountdownCardProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <div>
                 <label className="text-[7.5px] text-zinc-400 block mb-1 uppercase">
-                  EXAM / TARGET TITLE:
+                  TARGET TITLE:
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. 5 October Exam"
+                  placeholder="e.g. Marathon, Launch Date, Exam..."
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
                   className="w-full bg-[#08090d] border border-[#2e3244] focus:border-[#ff3b00] text-white px-2 py-1.5 text-[8.5px] rounded-xs focus:outline-none"
@@ -335,7 +335,7 @@ export const ExamCountdownCard: React.FC<ExamCountdownCardProps> = ({
 
               <div>
                 <label className="text-[7.5px] text-zinc-400 block mb-1 uppercase">
-                  EXAM TARGET DATE:
+                  TARGET DATE:
                 </label>
                 <input
                   type="date"
@@ -362,13 +362,6 @@ export const ExamCountdownCard: React.FC<ExamCountdownCardProps> = ({
               <span className="text-[7px] text-zinc-500 uppercase">PRESETS:</span>
               <button
                 type="button"
-                onClick={handleSetOctoberExamPreset}
-                className="px-2 py-0.5 bg-[#1a1c26] hover:bg-[#ff3b00] hover:text-black text-zinc-300 text-[7px] rounded-xs cursor-pointer border border-[#2c3042]"
-              >
-                5 October Exam
-              </button>
-              <button
-                type="button"
                 onClick={() => handleSetPreset(30, '30-Day Sprint')}
                 className="px-2 py-0.5 bg-[#1a1c26] hover:bg-[#ff3b00] hover:text-black text-zinc-300 text-[7px] rounded-xs cursor-pointer border border-[#2c3042]"
               >
@@ -376,10 +369,24 @@ export const ExamCountdownCard: React.FC<ExamCountdownCardProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => handleSetPreset(60, '60-Day Prep')}
+                onClick={() => handleSetPreset(60, '60-Day Goal')}
                 className="px-2 py-0.5 bg-[#1a1c26] hover:bg-[#ff3b00] hover:text-black text-zinc-300 text-[7px] rounded-xs cursor-pointer border border-[#2c3042]"
               >
                 +60 Days
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSetPreset(90, '90-Day Quarter')}
+                className="px-2 py-0.5 bg-[#1a1c26] hover:bg-[#ff3b00] hover:text-black text-zinc-300 text-[7px] rounded-xs cursor-pointer border border-[#2c3042]"
+              >
+                +90 Days
+              </button>
+              <button
+                type="button"
+                onClick={handleSetYearEndPreset}
+                className="px-2 py-0.5 bg-[#1a1c26] hover:bg-[#ff3b00] hover:text-black text-zinc-300 text-[7px] rounded-xs cursor-pointer border border-[#2c3042]"
+              >
+                Year End {currentYear}
               </button>
             </div>
 
@@ -530,7 +537,7 @@ export const ExamCountdownCard: React.FC<ExamCountdownCardProps> = ({
               {/* Description & Target Meta Text */}
               <div className="flex-1 min-w-0">
                 <div className="text-[11px] sm:text-xs font-bold text-zinc-200 uppercase tracking-wide flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[#ff3b00] font-black">[{goal.title || 'UKSSSC EXAM'}]</span>
+                  <span className="text-[#ff3b00] font-black">[{goal.title || 'SET TARGET'}]</span>
                   <span className="text-zinc-500">•</span>
                   <span className="text-zinc-300 font-pixel-label">{examStats.targetFormatted}</span>
                 </div>
@@ -539,7 +546,7 @@ export const ExamCountdownCard: React.FC<ExamCountdownCardProps> = ({
                     <span className="text-[#39d353] font-bold">Target date has arrived! Focus compound accomplished.</span>
                   ) : (
                     <span>
-                      <strong className="text-white">{examStats.daysElapsed}</strong> of <strong className="text-white">{examStats.totalDays}</strong> total days elapsed (<strong className="text-[#ff3b00]">{examStats.percentElapsed}%</strong> completed). Every focus session compounds towards your exam.
+                      <strong className="text-white">{examStats.daysElapsed}</strong> of <strong className="text-white">{examStats.totalDays}</strong> total days elapsed (<strong className="text-[#ff3b00]">{examStats.percentElapsed}%</strong> completed). Every focus session compounds towards your target goal.
                     </span>
                   )}
                 </div>
@@ -609,7 +616,7 @@ export const ExamCountdownCard: React.FC<ExamCountdownCardProps> = ({
                 )}
 
                 <div className="font-pixel-heading text-[7.5px] text-zinc-500">
-                  EXAM: <span className="text-[#ff3b00]">{goal.targetDate}</span>
+                  TARGET: <span className="text-[#ff3b00]">{goal.targetDate}</span>
                 </div>
               </div>
             </div>
@@ -637,7 +644,7 @@ export const ExamCountdownCard: React.FC<ExamCountdownCardProps> = ({
               className={`w-4 h-1.5 rounded-full transition-all cursor-pointer ${
                 activeSlide === 1 ? 'bg-[#ff3b00] w-6' : 'bg-zinc-700 hover:bg-zinc-500'
               }`}
-              title="Slide 2: UKSSSC / Exam Target"
+              title="Slide 2: Target Goal Countdown"
             />
           </div>
         </div>
