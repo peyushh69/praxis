@@ -445,13 +445,13 @@ export const App: React.FC = () => {
     <div className="min-h-screen bg-[#070709] text-zinc-100 flex flex-col justify-between selection:bg-[#ff3b00] selection:text-black">
       
       {/* Top Navigation Bar */}
-      <header className="border-b-2 border-[#242630] bg-[#0e0f14]/90 backdrop-blur-md sticky top-0 z-40">
-        <div className="max-w-4xl mx-auto px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between font-pixel-heading gap-2">
+      <header className="border-b-2 border-[#242630] bg-[#0e0f14]/90 backdrop-blur-md sticky top-0 z-40 w-full">
+        <div className="w-full px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3 flex items-center justify-between font-pixel-heading gap-2">
           
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {/* Chunky 3D Pixel Logo */}
             <div className="flex items-center gap-2 select-none group cursor-default">
-              <span className="font-pixel-chunky text-base sm:text-2xl font-bold lowercase tracking-normal transition-transform duration-100 hover:scale-105">
+              <span className="font-pixel-chunky text-lg sm:text-2xl font-bold lowercase tracking-normal transition-transform duration-100 hover:scale-105">
                 praxis
               </span>
             </div>
@@ -632,10 +632,10 @@ export const App: React.FC = () => {
       </main>
 
       {/* Footer */}
-      <footer className="border-t-2 border-[#242630] bg-[#0e0f14] py-4 text-center font-pixel-heading text-[8px] text-zinc-500">
-        <div className="max-w-4xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2.5">
-          <div className="flex flex-col sm:items-start items-center text-center sm:text-left gap-0.5">
-            <span className="text-[#d2ff28] font-bold text-[10px] tracking-wider uppercase">praxis</span>
+      <footer className="border-t-2 border-[#242630] bg-[#0e0f14] py-4 text-center font-pixel-heading text-[8px] text-zinc-500 w-full">
+        <div className="w-full px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+          <div className="flex flex-col sm:items-start items-center text-center sm:text-left gap-1">
+            <span className="font-pixel-chunky text-sm sm:text-base font-bold lowercase tracking-normal select-none">praxis</span>
             <span className="text-[7.5px] text-zinc-400 font-pixel-label tracking-normal">
               By <strong className="text-zinc-200 font-semibold">zero-sum commun</strong> • Created by <strong className="text-white font-semibold">Peyush</strong>
             </span>
