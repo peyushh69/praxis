@@ -1510,29 +1510,37 @@ export const RadialHabitTracker: React.FC<RadialHabitTrackerProps> = ({
                 HABIT TARGETS & PERFORMANCE MATRIX
               </span>
               <span className="text-[7.5px] text-zinc-500 font-pixel-label">
-                MONTHLY AUDIT ({habits.length} HABITS)
+                MONTHLY AUDIT ({habits.length} {habits.length === 1 ? 'HABIT' : 'HABITS'})
               </span>
             </div>
 
-            <div className="overflow-x-auto border border-[#242630] bg-[#090a0d]">
-              <table className="w-full table-fixed text-left text-[8px] border-collapse min-w-[650px]">
+            <div className="overflow-x-auto border border-[#242630] bg-[#090a0d] rounded-xs">
+              <table className={`w-full text-left text-[8px] border-collapse ${
+                habits.length >= 4 ? 'min-w-[540px]' : 'min-w-full table-fixed'
+              }`}>
                 <thead>
                   <tr className="bg-[#12131b] border-b border-[#242630]">
-                    <th className="p-2.5 border-r border-[#242630] font-pixel-label text-zinc-400 w-32 uppercase shrink-0">
+                    <th className="p-2 sm:p-2.5 border-r border-[#242630] font-pixel-label text-zinc-400 w-24 sm:w-28 md:w-32 uppercase shrink-0">
                       METRIC
                     </th>
                     {habits.map((h, i) => (
                       <th
                         key={h.id}
-                        className="p-2.5 border-r border-[#242630] text-center font-pixel-heading text-zinc-200 w-32"
+                        className={`p-2 sm:p-2.5 border-r border-[#242630] text-center font-pixel-heading text-zinc-200 ${
+                          habits.length === 1
+                            ? 'w-auto'
+                            : habits.length <= 3
+                            ? 'w-auto'
+                            : 'min-w-[100px] sm:min-w-[115px]'
+                        }`}
                       >
                         <div className="text-[7.5px] font-bold" style={{ color: h.color || '#ff3b00' }}>
                           HABIT {i + 1}
                         </div>
-                        <div className="truncate max-w-[110px] mx-auto font-pixel-label text-zinc-300 mt-0.5 text-[7px]" title={h.title}>
+                        <div className="truncate max-w-[120px] mx-auto font-pixel-label text-zinc-300 mt-0.5 text-[7px]" title={h.title}>
                           {h.title}
                         </div>
-                        <div className="text-[6.5px] font-pixel-label text-amber-400 truncate max-w-[110px] mx-auto mt-0.5">
+                        <div className="text-[6.5px] font-pixel-label text-amber-400 truncate max-w-[120px] mx-auto mt-0.5">
                           {formatFrequencyLabel(h.schedule)}
                         </div>
                       </th>
@@ -1542,12 +1550,12 @@ export const RadialHabitTracker: React.FC<RadialHabitTrackerProps> = ({
                 <tbody>
                   {/* Row 1: Target Goals */}
                   <tr className="border-b border-[#1c1e28]">
-                    <td className="p-2.5 border-r border-[#242630] font-pixel-label font-bold text-zinc-300 uppercase bg-[#0d0e14]">
+                    <td className="p-2 sm:p-2.5 border-r border-[#242630] font-pixel-label font-bold text-zinc-300 uppercase bg-[#0d0e14]">
                       SCHEDULED DAYS
                     </td>
                     {habitStats.map((stat) => (
-                      <td key={stat.habitId} className="p-2.5 border-r border-[#242630] text-center font-pixel-heading text-white">
-                        <span className="bg-[#151722] px-2 py-0.5 border border-[#282a3a] inline-block">
+                      <td key={stat.habitId} className="p-2 sm:p-2.5 border-r border-[#242630] text-center font-pixel-heading text-white">
+                        <span className="bg-[#151722] px-2 py-0.5 border border-[#282a3a] inline-block rounded-xs">
                           {stat.target} DAYS
                         </span>
                       </td>
@@ -1556,11 +1564,11 @@ export const RadialHabitTracker: React.FC<RadialHabitTrackerProps> = ({
 
                   {/* Row 2: Days Achieved */}
                   <tr>
-                    <td className="p-2.5 border-r border-[#242630] font-pixel-label font-bold text-[#39d353] uppercase bg-[#0d0e14]">
+                    <td className="p-2 sm:p-2.5 border-r border-[#242630] font-pixel-label font-bold text-[#39d353] uppercase bg-[#0d0e14]">
                       DAYS ACHIEVED
                     </td>
                     {habitStats.map((stat) => (
-                      <td key={stat.habitId} className="p-2.5 border-r border-[#242630] text-center font-pixel-heading">
+                      <td key={stat.habitId} className="p-2 sm:p-2.5 border-r border-[#242630] text-center font-pixel-heading">
                         <div className="text-[#39d353] font-bold text-[8.5px]">
                           {stat.achievedCount} <span className="text-[7px] text-zinc-500 font-normal">DAYS</span>
                         </div>
