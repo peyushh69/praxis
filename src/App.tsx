@@ -157,8 +157,19 @@ export const App: React.FC = () => {
     try {
       setIsLoggingIn(true);
       setLoginError(null);
-      await loginWithGoogle();
+      const user = await loginWithGoogle();
+      if (!user) {
+        // User closed or cancelled login popup
+        return;
+      }
     } catch (err: any) {
+      if (
+        err?.code === 'auth/popup-closed-by-user' ||
+        err?.code === 'auth/cancelled-popup-request' ||
+        err?.message?.includes('popup-closed-by-user')
+      ) {
+        return;
+      }
       console.error('Login failed:', err);
       setLoginError(err?.message || 'Login failed. Please try again.');
     } finally {

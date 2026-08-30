@@ -20,11 +20,20 @@ export const db = firebaseConfig.firestoreDatabaseId
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
-export async function loginWithGoogle(): Promise<User> {
+export async function loginWithGoogle(): Promise<User | null> {
   try {
     const result = await signInWithPopup(auth, googleProvider);
     return result.user;
   } catch (error: any) {
+    if (
+      error?.code === 'auth/popup-closed-by-user' ||
+      error?.code === 'auth/cancelled-popup-request' ||
+      error?.code === 'auth/user-cancelled' ||
+      error?.message?.includes('popup-closed-by-user')
+    ) {
+      // User closed the popup or cancelled authentication - handled smoothly without error state
+      return null;
+    }
     console.error('Google Sign-In Error:', error);
     throw error;
   }
