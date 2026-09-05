@@ -26,6 +26,7 @@ import {
   saveTaskToFirestore,
   deleteTaskFromFirestore,
   saveHabitsToFirestore,
+  deleteHabitFromFirestore,
   saveHabitLogsToFirestore,
   saveSettingsToFirestore,
   saveCountdownGoalToFirestore,
@@ -94,8 +95,8 @@ export const App: React.FC = () => {
             email: user.email,
             photoURL: user.photoURL,
           });
-        } catch (e) {
-          console.error('Failed initializing user doc:', e);
+        } catch (e: any) {
+          console.warn('Notice: initialize user doc:', e?.message || e);
         }
       } else {
         // User logged out: Reset UI state to empty/blank state
@@ -153,7 +154,11 @@ export const App: React.FC = () => {
   }, [currentUser]);
 
   // Auth Handlers
-  const handleGoogleLogin = async () => {
+  const handleGoogleLogin = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     try {
       setIsLoggingIn(true);
       setLoginError(null);
@@ -163,15 +168,20 @@ export const App: React.FC = () => {
         return;
       }
     } catch (err: any) {
+      const code = err?.code || '';
+      const msg = err?.message || '';
+
       if (
-        err?.code === 'auth/popup-closed-by-user' ||
-        err?.code === 'auth/cancelled-popup-request' ||
-        err?.message?.includes('popup-closed-by-user')
+        code === 'auth/popup-closed-by-user' ||
+        code === 'auth/cancelled-popup-request' ||
+        code === 'auth/user-cancelled' ||
+        msg.includes('popup-closed-by-user')
       ) {
         return;
       }
-      console.error('Login failed:', err);
-      setLoginError(err?.message || 'Login failed. Please try again.');
+
+      console.warn('Sign-in notification:', msg || err);
+      setLoginError(msg || 'Login failed. Please check connection and try again.');
     } finally {
       setIsLoggingIn(false);
     }
@@ -435,6 +445,42 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleDeleteHabit = async (habitId: string) => {
+    const updated = habits
+      .filter((h) => h.id !== habitId)
+      .map((h, idx) => ({ ...h, number: idx + 1 }));
+    setHabits(updated);
+
+    // Clean up habitLogs for this habit ID
+    setHabitLogs((prev) => {
+      let changed = false;
+      const nextLogs: HabitProgressRecord = {};
+      Object.keys(prev).forEach((monthKey) => {
+        const monthObj = prev[monthKey];
+        if (monthObj && habitId in monthObj) {
+          changed = true;
+          const updatedMonth: { [id: string]: number[] } = {};
+          Object.keys(monthObj).forEach((hId) => {
+            if (hId !== habitId) {
+              updatedMonth[hId] = monthObj[hId];
+            }
+          });
+          nextLogs[monthKey] = updatedMonth;
+        } else if (monthObj) {
+          nextLogs[monthKey] = monthObj;
+        }
+      });
+      if (changed && currentUser) {
+        saveHabitLogsToFirestore(currentUser.uid, nextLogs);
+      }
+      return changed ? nextLogs : prev;
+    });
+
+    if (currentUser) {
+      await deleteHabitFromFirestore(currentUser.uid, habitId, updated);
+    }
+  };
+
   const handleResetAllData = () => {
     setSessions([]);
     setTasks([]);
@@ -509,7 +555,8 @@ export const App: React.FC = () => {
             ) : (
               /* Login With Google Button (Retro Neon Orange Aesthetic - Responsive) */
               <button
-                onClick={handleGoogleLogin}
+                type="button"
+                onClick={(e) => handleGoogleLogin(e)}
                 disabled={isLoggingIn}
                 className="bg-[#181a24] hover:bg-[#ff3b00] hover:text-black text-[#ff3b00] border border-[#ff3b00] px-2 sm:px-3 py-1 sm:py-1.5 text-[7.5px] sm:text-[8px] flex items-center gap-1.5 sm:gap-2 cursor-pointer shadow-[0_0_8px_rgba(255,59,0,0.2)] hover:shadow-[0_0_14px_rgba(255,59,0,0.6)] transition-all font-pixel-heading uppercase tracking-wider group shrink-0"
                 title="Login with Google to sync sessions & habits across devices"
@@ -538,6 +585,7 @@ export const App: React.FC = () => {
             )}
 
             <button
+              type="button"
               onClick={() => setIsInstallModalOpen(true)}
               className="bg-[#181a24] hover:bg-[#ff3b00] hover:text-black text-[#ff3b00] border border-[#ff3b00]/70 px-2 sm:px-2.5 py-1 sm:py-1.5 text-[7.5px] sm:text-[8px] flex items-center gap-1 sm:gap-1.5 cursor-pointer shadow-xs transition-all font-pixel-label uppercase"
               title="Download / Install Android App (APK)"
@@ -547,6 +595,7 @@ export const App: React.FC = () => {
             </button>
 
             <button
+              type="button"
               onClick={() => setIsSettingsOpen(true)}
               className="pixel-btn-dark px-2 sm:px-3 py-1 sm:py-1.5 text-[7.5px] sm:text-[8px] flex items-center gap-1 sm:gap-1.5 cursor-pointer"
               title="Open System Preferences"
@@ -561,15 +610,37 @@ export const App: React.FC = () => {
 
       {/* Login Error Notification Banner if any */}
       {loginError && (
-        <div className="bg-red-950/80 border-b border-red-800/80 text-red-200 px-4 py-2 text-center text-[8px] font-pixel-label flex items-center justify-center gap-2">
-          <AlertCircle size={12} className="text-red-400" />
-          <span>{loginError}</span>
-          <button
-            onClick={() => setLoginError(null)}
-            className="ml-3 underline text-red-400 hover:text-white cursor-pointer"
-          >
-            DISMISS
-          </button>
+        <div className="bg-red-950/90 border-b border-red-800/80 text-red-200 px-4 py-2 text-center text-[8px] font-pixel-label flex flex-wrap items-center justify-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <AlertCircle size={12} className="text-red-400 shrink-0" />
+            <span>{loginError}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={(e) => handleGoogleLogin(e)}
+              disabled={isLoggingIn}
+              className="bg-[#ff3b00] hover:bg-[#ff5722] text-black font-bold px-2 py-0.5 text-[7.5px] cursor-pointer transition-colors"
+            >
+              {isLoggingIn ? 'RETRYING...' : 'RETRY SIGN-IN'}
+            </button>
+            {typeof window !== 'undefined' && window.self !== window.top && (
+              <button
+                type="button"
+                onClick={() => window.open(window.location.href, '_blank')}
+                className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 px-2 py-0.5 text-[7.5px] cursor-pointer"
+              >
+                OPEN IN NEW TAB ↗
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setLoginError(null)}
+              className="underline text-red-400 hover:text-white cursor-pointer ml-1 text-[7.5px]"
+            >
+              DISMISS
+            </button>
+          </div>
         </div>
       )}
 
@@ -579,7 +650,8 @@ export const App: React.FC = () => {
           <span className="text-[#ff3b00] font-bold">[!] GUEST MODE:</span>
           <span>Sign in with Google to persist your timer history, tasks, and streaks directly to Firestore.</span>
           <button
-            onClick={handleGoogleLogin}
+            type="button"
+            onClick={(e) => handleGoogleLogin(e)}
             className="text-white hover:text-[#ff3b00] underline font-bold cursor-pointer ml-1"
           >
             Sign in now →
@@ -637,6 +709,7 @@ export const App: React.FC = () => {
           habits={habits}
           habitLogs={habitLogs}
           onUpdateHabits={handleUpdateHabits}
+          onDeleteHabit={handleDeleteHabit}
           onToggleHabitDay={handleToggleHabitDay}
         />
 

@@ -32,6 +32,7 @@ interface RadialHabitTrackerProps {
   habits: HabitItem[];
   habitLogs: HabitProgressRecord;
   onUpdateHabits: (habits: HabitItem[]) => void;
+  onDeleteHabit?: (habitId: string) => void;
   onToggleHabitDay: (monthKey: string, habitId: string, day: number) => void;
   onBatchToggleDay?: (monthKey: string, day: number, habitIds: string[], complete: boolean) => void;
 }
@@ -131,6 +132,7 @@ export const RadialHabitTracker: React.FC<RadialHabitTrackerProps> = ({
   habits,
   habitLogs,
   onUpdateHabits,
+  onDeleteHabit,
   onToggleHabitDay,
 }) => {
   const today = new Date();
@@ -261,13 +263,20 @@ export const RadialHabitTracker: React.FC<RadialHabitTrackerProps> = ({
 
   // Delete Habit
   const handleDeleteHabit = (habitId: string) => {
-    const updated = habits
-      .filter((h) => h.id !== habitId)
-      .map((h, idx) => ({ ...h, number: idx + 1 }));
-    onUpdateHabits(updated);
-    if (inspectedHabitId === habitId) {
-      setInspectedHabitId(updated[0]?.id || null);
+    if (onDeleteHabit) {
+      onDeleteHabit(habitId);
+    } else {
+      const updated = habits
+        .filter((h) => h.id !== habitId)
+        .map((h, idx) => ({ ...h, number: idx + 1 }));
+      onUpdateHabits(updated);
     }
+    const remaining = habits.filter((h) => h.id !== habitId);
+    if (inspectedHabitId === habitId) {
+      setInspectedHabitId(remaining[0]?.id || null);
+    }
+    setEditingHabitId(null);
+    setDeleteConfirmId(null);
   };
 
   // Move Habit Up / Down

@@ -2,6 +2,7 @@ import {
   doc,
   setDoc,
   getDoc,
+  getDocs,
   collection,
   query,
   orderBy,
@@ -37,10 +38,29 @@ export async function initializeUserData(
 ) {
   try {
     const userDocRef = doc(db, 'users', userId);
-    const snap = await getDoc(userDocRef);
+    let snap: any = null;
 
-    if (!snap.exists()) {
-      // Create initial profile and default data
+    try {
+      snap = await getDoc(userDocRef);
+    } catch (fetchErr: any) {
+      // Offline mode or slow connection: non-fatal, log notice and continue with offline merge
+      console.warn('Notice: Firestore offline during initializeUserData, syncing locally:', fetchErr?.message || fetchErr);
+    }
+
+    if (snap && snap.exists()) {
+      // Existing user: update profile info with merge
+      await setDoc(
+        userDocRef,
+        {
+          displayName: userProfile?.displayName || snap.data()?.displayName || 'Praxis User',
+          email: userProfile?.email || snap.data()?.email || '',
+          photoURL: userProfile?.photoURL || snap.data()?.photoURL || '',
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    } else if (snap && !snap.exists()) {
+      // Brand new user: create initial profile and default data
       await setDoc(userDocRef, {
         uid: userId,
         displayName: userProfile?.displayName || 'Praxis User',
@@ -61,20 +81,21 @@ export async function initializeUserData(
         });
       }
     } else {
-      // Update profile info if changed
+      // Client offline fallback: save profile via merge so it queues in local cache and syncs online
       await setDoc(
         userDocRef,
         {
-          displayName: userProfile?.displayName || snap.data()?.displayName || 'Praxis User',
-          email: userProfile?.email || snap.data()?.email || '',
-          photoURL: userProfile?.photoURL || snap.data()?.photoURL || '',
+          uid: userId,
+          ...(userProfile?.displayName ? { displayName: userProfile.displayName } : {}),
+          ...(userProfile?.email ? { email: userProfile.email } : {}),
+          ...(userProfile?.photoURL ? { photoURL: userProfile.photoURL } : {}),
           updatedAt: new Date().toISOString(),
         },
         { merge: true }
       );
     }
-  } catch (error) {
-    console.error('Error initializing user data in Firestore:', error);
+  } catch (error: any) {
+    console.warn('Notice initializing user data in Firestore:', error?.message || error);
   }
 }
 
@@ -104,7 +125,7 @@ export function subscribeUserDoc(
       }
     },
     (err) => {
-      console.error('Firestore subscribeUserDoc error:', err);
+      console.warn('Firestore subscribeUserDoc status:', err?.message || err);
     }
   );
 }
@@ -126,7 +147,7 @@ export function subscribeSessions(
       callback(list);
     },
     (err) => {
-      console.error('Firestore subscribeSessions error:', err);
+      console.warn('Firestore subscribeSessions status:', err?.message || err);
     }
   );
 }
@@ -148,7 +169,7 @@ export function subscribeTasks(
       callback(list);
     },
     (err) => {
-      console.error('Firestore subscribeTasks error:', err);
+      console.warn('Firestore subscribeTasks status:', err?.message || err);
     }
   );
 }
@@ -164,13 +185,21 @@ export function subscribeHabits(
     q,
     (snapshot) => {
       const list: HabitItem[] = [];
+      const seenIds = new Set<string>();
       snapshot.forEach((docSnap) => {
-        list.push(docSnap.data() as HabitItem);
+        const item = docSnap.data() as HabitItem;
+        const id = item.id || docSnap.id;
+        if (!seenIds.has(id)) {
+          seenIds.add(id);
+          list.push({ ...item, id });
+        }
       });
-      callback(list.length > 0 ? list : DEFAULT_HABITS);
+      // Always sort by habit number
+      list.sort((a, b) => (a.number ?? 0) - (b.number ?? 0));
+      callback(list);
     },
     (err) => {
-      console.error('Firestore subscribeHabits error:', err);
+      console.warn('Firestore subscribeHabits status:', err?.message || err);
     }
   );
 }
@@ -212,13 +241,60 @@ export async function deleteTaskFromFirestore(userId: string, taskId: string) {
   }
 }
 
-export async function saveHabitsToFirestore(userId: string, habits: HabitItem[]) {
+export async function deleteHabitFromFirestore(
+  userId: string,
+  habitId: string,
+  remainingHabits?: HabitItem[]
+) {
   try {
     const batch = writeBatch(db);
-    habits.forEach((h) => {
-      const ref = doc(db, 'users', userId, 'habits', h.id);
-      batch.set(ref, { ...h, userId });
+    // 1. Permanently delete the target habit document
+    const habitDocRef = doc(db, 'users', userId, 'habits', habitId);
+    batch.delete(habitDocRef);
+
+    // 2. Renumber and persist remaining habits atomically in the same batch
+    if (remainingHabits && remainingHabits.length > 0) {
+      remainingHabits.forEach((h, idx) => {
+        const ref = doc(db, 'users', userId, 'habits', h.id);
+        batch.set(ref, {
+          ...h,
+          number: idx + 1,
+          userId,
+        });
+      });
+    }
+
+    await batch.commit();
+  } catch (error) {
+    console.error('Error deleting habit from Firestore:', error);
+  }
+}
+
+export async function saveHabitsToFirestore(userId: string, habits: HabitItem[]) {
+  try {
+    const habitsColl = collection(db, 'users', userId, 'habits');
+    const existingSnap = await getDocs(habitsColl);
+    const newHabitIds = new Set(habits.map((h) => h.id));
+
+    const batch = writeBatch(db);
+
+    // Delete any documents in Firestore that are no longer in the user's active habits list
+    existingSnap.forEach((docSnap) => {
+      if (!newHabitIds.has(docSnap.id)) {
+        batch.delete(docSnap.ref);
+      }
     });
+
+    // Write / update all current habits with sequential numbering
+    habits.forEach((h, idx) => {
+      const ref = doc(db, 'users', userId, 'habits', h.id);
+      batch.set(ref, {
+        ...h,
+        number: idx + 1,
+        userId,
+      });
+    });
+
     await batch.commit();
   } catch (error) {
     console.error('Error saving habits to Firestore:', error);
