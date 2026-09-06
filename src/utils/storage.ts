@@ -155,16 +155,21 @@ export function calculateStreakStats(dayLogs: Record<string, DayLog>) {
 
   let totalSessions = 0;
   let totalMinutes = 0;
+  let bestDayMinutes = 0;
 
   Object.values(dayLogs).forEach((log) => {
     totalSessions += log.completedPomodoros;
     totalMinutes += log.totalMinutes;
+    if (log.totalMinutes > bestDayMinutes) {
+      bestDayMinutes = log.totalMinutes;
+    }
   });
 
   if (dates.length === 0) {
     return {
       currentStreak: 0,
       maxStreak: 0,
+      bestDayMinutes: 0,
       totalSessions: 0,
       totalMinutes: 0,
       todayCompleted: 0,
@@ -227,6 +232,7 @@ export function calculateStreakStats(dayLogs: Record<string, DayLog>) {
   return {
     currentStreak,
     maxStreak,
+    bestDayMinutes,
     totalSessions,
     totalMinutes,
     todayCompleted: todayLog.completedPomodoros,

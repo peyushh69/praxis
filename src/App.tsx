@@ -665,7 +665,7 @@ export const App: React.FC = () => {
         {/* Metric Statistics (Starts clean at 0, 0) */}
         <StatsOverview
           currentStreak={streakStats.currentStreak}
-          maxStreak={streakStats.maxStreak}
+          bestDayMinutes={streakStats.bestDayMinutes}
           todayCompleted={streakStats.todayCompleted}
           todayMinutes={streakStats.todayMinutes}
           dailyTarget={settings.dailyTarget}

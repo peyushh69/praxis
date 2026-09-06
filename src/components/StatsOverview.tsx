@@ -3,7 +3,7 @@ import { Flame, Trophy, Clock, CheckCircle } from 'lucide-react';
 
 interface StatsOverviewProps {
   currentStreak: number;
-  maxStreak: number;
+  bestDayMinutes: number;
   todayCompleted: number;
   todayMinutes: number;
   dailyTarget: number;
@@ -11,7 +11,7 @@ interface StatsOverviewProps {
 
 export const StatsOverview: React.FC<StatsOverviewProps> = ({
   currentStreak,
-  maxStreak,
+  bestDayMinutes,
   todayCompleted,
   todayMinutes,
   dailyTarget,
@@ -35,17 +35,17 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({
         </div>
       </div>
 
-      {/* Record Streak */}
+      {/* Best Day */}
       <div className="bg-[#0e0f14] border-2 border-[#242630] p-4 relative group hover:border-[#ff3b00] transition-colors">
         <div className="flex items-center justify-between text-zinc-400 mb-2 font-pixel-label">
           <span className="text-[8px] uppercase tracking-wider">BEST</span>
-          <Trophy size={14} className={maxStreak > 0 ? 'text-[#ff3b00]' : 'text-zinc-600'} />
+          <Trophy size={14} className={bestDayMinutes > 0 ? 'text-[#ff3b00]' : 'text-zinc-600'} />
         </div>
         <div className="text-xl sm:text-2xl font-bold text-white mt-1">
-          {maxStreak} <span className="text-[9px] font-normal text-zinc-500 font-pixel-label">{maxStreak === 1 ? 'DAY' : 'DAYS'}</span>
+          {bestDayMinutes} <span className="text-[9px] font-normal text-zinc-500 font-pixel-label">MINS</span>
         </div>
         <div className="text-[8px] text-zinc-500 mt-1 font-pixel-label">
-          ALL TIME
+          MOST FOCUS IN A DAY
         </div>
       </div>
 
