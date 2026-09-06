@@ -34,7 +34,6 @@ import {
   DEFAULT_COUNTDOWN_GOAL,
 } from './services/firestoreService';
 
-import { GalaxyBackground } from "./components/GalaxyBackground";
 import { PixelTimer } from './components/PixelTimer';
 import { ExamCountdownCard } from './components/ExamCountdownCard';
 import { ConsistencyHeatmap } from './components/ConsistencyHeatmap';
@@ -501,10 +500,9 @@ export const App: React.FC = () => {
     : 'PILOT';
 
   return (
-    <div className="min-h-screen bg-[#070709] text-zinc-100 flex flex-col justify-between selection:bg-[#ff3b00] selection:text-black relative z-0">
-      <GalaxyBackground />
+    <div className="min-h-screen bg-black text-zinc-100 flex flex-col justify-between selection:bg-[#ff3b00] selection:text-black relative z-0">
       {/* Top Navigation Bar */}
-      <header className="border-b-2 border-[#242630] bg-[#0e0f14]/90 backdrop-blur-md sticky top-0 z-40 w-full">
+      <header className="border-b-2 border-[#151515] bg-black/90 backdrop-blur-md sticky top-0 z-40 w-full">
         <div className="w-full px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3 flex items-center justify-between font-pixel-heading gap-2">
           
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
@@ -740,7 +738,7 @@ export const App: React.FC = () => {
       </main>
 
       {/* Footer */}
-      <footer className="border-t-2 border-[#242630] bg-[#0e0f14] py-4 text-center font-pixel-heading text-[8px] text-zinc-500 w-full">
+      <footer className="border-t-2 border-[#151515] bg-black py-4 text-center font-pixel-heading text-[8px] text-zinc-500 w-full">
         <div className="w-full px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2.5">
           <div className="flex flex-col sm:items-start items-center text-center sm:text-left gap-1">
             <span className="font-pixel-chunky text-sm sm:text-base font-bold lowercase tracking-normal select-none">praxis</span>
