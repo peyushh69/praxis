@@ -71,20 +71,20 @@ export const GalaxyBackground: React.FC = () => {
 
     // Mathematical definition of the 9 celestial bodies
     const planets = [
-      { name: 'Mercury', r: 4, dist: 100, speed: 0.00004, color: '#8c8c8c' },
-      { name: 'Venus', r: 8, dist: 150, speed: 0.00003, color: '#e3bb76' },
-      { name: 'Earth', r: 9, dist: 210, speed: 0.000025, color: '#2b82c9', hasMoon: true },
-      { name: 'Mars', r: 6, dist: 270, speed: 0.00002, color: '#c1440e' },
-      { name: 'Jupiter', r: 24, dist: 380, speed: 0.00001, color: '#c88b3a' },
-      { name: 'Saturn', r: 20, dist: 490, speed: 0.000008, color: '#e3e0c0', hasRings: true },
-      { name: 'Uranus', r: 14, dist: 590, speed: 0.000006, color: '#4b70dd' },
-      { name: 'Neptune', r: 14, dist: 680, speed: 0.000005, color: '#274687' },
-      { name: 'Pluto', r: 3, dist: 750, speed: 0.000004, color: '#cbd5e1' }
+      { name: 'Mercury', r: 4, dist: 100, speed: 0.00001, color: '#8c8c8c' },
+      { name: 'Venus', r: 8, dist: 150, speed: 0.000008, color: '#e3bb76' },
+      { name: 'Earth', r: 9, dist: 210, speed: 0.000005, color: '#2b82c9', hasMoon: true },
+      { name: 'Mars', r: 6, dist: 270, speed: 0.000004, color: '#c1440e' },
+      { name: 'Jupiter', r: 24, dist: 380, speed: 0.000002, color: '#c88b3a' },
+      { name: 'Saturn', r: 20, dist: 490, speed: 0.0000015, color: '#e3e0c0', hasRings: true },
+      { name: 'Uranus', r: 14, dist: 590, speed: 0.000001, color: '#4b70dd' },
+      { name: 'Neptune', r: 14, dist: 680, speed: 0.0000008, color: '#274687' },
+      { name: 'Pluto', r: 3, dist: 750, speed: 0.0000006, color: '#cbd5e1' }
     ];
 
     let currentTarget = -1; // -1: Solar System Center, 0-8: Planets, 9: Deep Space
     let lastSwitchTime = Date.now();
-    const switchInterval = 18000; // Shift focus every 18 seconds
+    const switchInterval = 30000; // Shift focus every 30 seconds
 
     const render = () => {
       ctx.fillStyle = '#010205'; 
@@ -135,10 +135,10 @@ export const GalaxyBackground: React.FC = () => {
         tScale = baseScale * 4.5; // Zoom in close!
       }
 
-      // Smooth camera interpolation (lerp)
-      camX += (tX - camX) * 0.012;
-      camY += (tY - camY) * 0.012;
-      camScale += (tScale - camScale) * 0.012;
+      // Smooth camera interpolation (lerp) (reduced for slower, calmer movement)
+      camX += (tX - camX) * 0.002;
+      camY += (tY - camY) * 0.002;
+      camScale += (tScale - camScale) * 0.002;
 
       // Deep space galactic clouds (Static relative to screen for ambient feel)
       const t = time * 0.00002; 
@@ -201,17 +201,6 @@ export const GalaxyBackground: React.FC = () => {
       ctx.restore();
       ctx.shadowBlur = 0;
 
-      // Extra solar glow seamlessly fading into space
-      const sunGlow = ctx.createRadialGradient(cx, cy, sunR * 0.9, cx, cy, sunR * 2.5);
-      sunGlow.addColorStop(0, 'rgba(255, 255, 255, 0.2)');
-      sunGlow.addColorStop(0.2, 'rgba(253, 224, 71, 0.15)');
-      sunGlow.addColorStop(0.5, 'rgba(245, 158, 11, 0.1)');
-      sunGlow.addColorStop(1, 'rgba(234, 88, 12, 0)');
-      ctx.fillStyle = sunGlow;
-      ctx.beginPath();
-      ctx.arc(cx, cy, sunR * 2.5, 0, Math.PI*2);
-      ctx.fill();
-
       // Draw Planets with High-Res NASA Images and 3D Shading
       planets.forEach((p, index) => {
         const pR = p.r * baseScale;
@@ -254,9 +243,9 @@ export const GalaxyBackground: React.FC = () => {
         if (img && img.complete && img.naturalWidth > 0) {
             // Apply slow axial rotation to planet bodies
             ctx.translate(px, py);
-            ctx.rotate(time * 0.0002);
+            ctx.rotate(time * 0.0001);
             ctx.drawImage(img, -pR, -pR, pR * 2, pR * 2);
-            ctx.rotate(-time * 0.0002);
+            ctx.rotate(-time * 0.0001);
             ctx.translate(-px, -py);
         } else {
             ctx.fillStyle = p.color;
@@ -284,16 +273,76 @@ export const GalaxyBackground: React.FC = () => {
         ctx.fillRect(px - pR, py - pR, pR * 2, pR * 2);
         ctx.restore();
 
-        // Earth's tiny Moon orbiting it
+        // Planet Name Label
+        ctx.font = `bold ${Math.max(4, 8 * baseScale)}px monospace`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.textAlign = 'center';
+        ctx.fillText(p.name, px, py - pR - (4 * baseScale));
+
+        // Earth's tiny Moon orbiting it with accurate Phase based on today's date
         if (p.hasMoon) {
-          const mAngle = time * 0.002; 
-          const mDist = pR * 2.5;
+          const mAngle = time * 0.0005; 
+          const mDist = pR * 3;
           const mx = px + Math.cos(mAngle) * mDist; 
           const my = py + Math.sin(mAngle) * mDist;
+          const moonR = Math.max(1, pR * 0.35);
+
+          ctx.save();
+          ctx.translate(mx, my);
+
+          // Base Moon (Lit part)
           ctx.beginPath();
-          ctx.arc(mx, my, Math.max(1, pR * 0.25), 0, Math.PI * 2);
+          ctx.arc(0, 0, moonR, 0, Math.PI * 2);
           ctx.fillStyle = '#e8e8e1';
           ctx.fill();
+
+          // Calculate current Moon Phase dynamically
+          const lunarCycle = 29.53058770576;
+          const knownNewMoon = new Date('2000-01-06T18:14:00Z').getTime();
+          const phase = ((time - knownNewMoon) / 86400000) % lunarCycle / lunarCycle;
+
+          // Draw Phase Shadow
+          ctx.fillStyle = '#111111'; // Space shadow color
+          let mag = 0;
+          ctx.beginPath();
+          if (phase <= 0.25) { // Waxing crescent
+             ctx.arc(0, 0, moonR, Math.PI * 1.5, Math.PI * 0.5, true); 
+             ctx.fill();
+             ctx.beginPath();
+             mag = 1 - (phase / 0.25); 
+             ctx.ellipse(0, 0, moonR * mag, moonR, 0, Math.PI * 1.5, Math.PI * 0.5, false); 
+             ctx.fill();
+          } else if (phase <= 0.5) { // Waxing gibbous
+             ctx.arc(0, 0, moonR, Math.PI * 1.5, Math.PI * 0.5, true); 
+             ctx.fill();
+             ctx.fillStyle = '#e8e8e1';
+             ctx.beginPath();
+             mag = (phase - 0.25) / 0.25; 
+             ctx.ellipse(0, 0, moonR * mag, moonR, 0, Math.PI * 1.5, Math.PI * 0.5, true);
+             ctx.fill();
+          } else if (phase <= 0.75) { // Waning gibbous
+             ctx.arc(0, 0, moonR, Math.PI * 1.5, Math.PI * 0.5, false); 
+             ctx.fill();
+             ctx.fillStyle = '#e8e8e1';
+             ctx.beginPath();
+             mag = 1 - ((phase - 0.5) / 0.25);
+             ctx.ellipse(0, 0, moonR * mag, moonR, 0, Math.PI * 1.5, Math.PI * 0.5, false);
+             ctx.fill();
+          } else { // Waning crescent
+             ctx.arc(0, 0, moonR, Math.PI * 1.5, Math.PI * 0.5, false); 
+             ctx.fill();
+             ctx.beginPath();
+             mag = (phase - 0.75) / 0.25; 
+             ctx.ellipse(0, 0, moonR * mag, moonR, 0, Math.PI * 1.5, Math.PI * 0.5, true);
+             ctx.fill();
+          }
+          ctx.restore();
+
+          // Moon Name Label
+          ctx.font = `bold ${Math.max(3, 6 * baseScale)}px monospace`;
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+          ctx.textAlign = 'center';
+          ctx.fillText("Moon", mx, my - moonR - (2 * baseScale));
         }
       });
       
