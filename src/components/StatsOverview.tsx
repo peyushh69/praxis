@@ -17,7 +17,7 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({
   dailyTarget,
 }) => {
   const targetPercent = Math.min(100, Math.round((todayCompleted / dailyTarget) * 100));
-
+  
   return (
     <div className="w-full max-w-4xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-3 font-pixel-heading">
       
@@ -79,7 +79,6 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({
           {(todayMinutes / 60).toFixed(1)} HOURS
         </div>
       </div>
-
     </div>
   );
 };

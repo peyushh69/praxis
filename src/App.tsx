@@ -33,6 +33,8 @@ import {
   resetUserDataInFirestore,
   DEFAULT_COUNTDOWN_GOAL,
 } from './services/firestoreService';
+
+import { GalaxyBackground } from "./components/GalaxyBackground";
 import { PixelTimer } from './components/PixelTimer';
 import { ExamCountdownCard } from './components/ExamCountdownCard';
 import { ConsistencyHeatmap } from './components/ConsistencyHeatmap';
@@ -499,8 +501,8 @@ export const App: React.FC = () => {
     : 'PILOT';
 
   return (
-    <div className="min-h-screen bg-[#070709] text-zinc-100 flex flex-col justify-between selection:bg-[#ff3b00] selection:text-black">
-      
+    <div className="min-h-screen bg-[#070709] text-zinc-100 flex flex-col justify-between selection:bg-[#ff3b00] selection:text-black relative z-0">
+      <GalaxyBackground />
       {/* Top Navigation Bar */}
       <header className="border-b-2 border-[#242630] bg-[#0e0f14]/90 backdrop-blur-md sticky top-0 z-40 w-full">
         <div className="w-full px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3 flex items-center justify-between font-pixel-heading gap-2">
@@ -686,6 +688,8 @@ export const App: React.FC = () => {
                 id: 'task_' + Date.now(),
                 title: title,
                 completedPomodoros: 0,
+                estimatedPomodoros: 4,
+                completed: false,
                 createdAt: Date.now(),
               };
               setTasks((prev) => [newGoalTask, ...prev]);
