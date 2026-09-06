@@ -674,7 +674,27 @@ export const App: React.FC = () => {
         {/* Exam / Milestone Target Countdown Dot Matrix Card (Positioned right above focused timer) */}
         <ExamCountdownCard
           goal={countdownGoal}
+          dayLogs={dayLogs}
+          sessions={sessions}
           onUpdateGoal={handleUpdateCountdownGoal}
+          onSelectGoalAsTask={(title) => {
+            const existingTask = tasks.find((t) => t.title.toLowerCase() === title.toLowerCase());
+            if (existingTask) {
+              setActiveTaskId(existingTask.id);
+            } else {
+              const newGoalTask: TaskItem = {
+                id: 'task_' + Date.now(),
+                title: title,
+                completedPomodoros: 0,
+                createdAt: Date.now(),
+              };
+              setTasks((prev) => [newGoalTask, ...prev]);
+              setActiveTaskId(newGoalTask.id);
+              if (currentUser) {
+                saveTaskToFirestore(currentUser.uid, newGoalTask);
+              }
+            }
+          }}
         />
 
         {/* Vintage Pixel/Digital Countdown Timer */}
