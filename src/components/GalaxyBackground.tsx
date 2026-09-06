@@ -13,11 +13,19 @@ export const GalaxyBackground: React.FC = () => {
     let width = window.innerWidth;
     let height = window.innerHeight;
 
+    let camX = width / 2;
+    let camY = height / 2;
+    let camScale = 1;
+
     const setCanvasSize = () => {
       width = window.innerWidth;
       height = window.innerHeight;
       canvas.width = width;
       canvas.height = height;
+      if (Math.abs(camX - width/2) < 50) {
+        camX = width / 2;
+        camY = height / 2;
+      }
     };
     setCanvasSize();
     window.addEventListener('resize', setCanvasSize);
@@ -44,19 +52,20 @@ export const GalaxyBackground: React.FC = () => {
       images[key] = img;
     });
 
-    // Drifting background stars (Extremely Slow & Realistic)
-    const numStars = 1200;
-    const stars: { x: number; y: number; radius: number; color: string; speed: number; alpha: number; dAlpha: number }[] = [];
+    // Reduced number of stars for a cleaner look, added parallax depth
+    const numStars = 450;
+    const stars: { x: number; y: number; radius: number; color: string; speed: number; alpha: number; dAlpha: number; z: number }[] = [];
     const colors = ['#ffffff', '#ffe9c4', '#d4fbff', '#f4d1ff', '#e0f2fe'];
     for (let i = 0; i < numStars; i++) {
       stars.push({
         x: Math.random() * width,
         y: Math.random() * height,
-        radius: Math.random() * 1.2,
+        radius: Math.random() * 1.5,
         color: colors[Math.floor(Math.random() * colors.length)],
-        speed: (Math.random() * 0.015) + 0.002,
+        speed: (Math.random() * 0.08) + 0.02,
         alpha: Math.random(),
-        dAlpha: (Math.random() * 0.005) - 0.0025
+        dAlpha: (Math.random() * 0.005) - 0.0025,
+        z: (Math.random() * 5) + 1 // Depth for parallax (1 = close, 6 = far)
       });
     }
 
@@ -73,15 +82,66 @@ export const GalaxyBackground: React.FC = () => {
       { name: 'Pluto', r: 3, dist: 750, speed: 0.000004, color: '#cbd5e1' }
     ];
 
+    let currentTarget = -1; // -1: Solar System Center, 0-8: Planets, 9: Deep Space
+    let lastSwitchTime = Date.now();
+    const switchInterval = 18000; // Shift focus every 18 seconds
+
     const render = () => {
       ctx.fillStyle = '#010205'; 
       ctx.fillRect(0, 0, width, height);
 
-      // Deep space galactic clouds
-      const t = Date.now() * 0.00002; 
+      const time = Date.now();
       const cx = width / 2;
       const cy = height / 2;
-      
+      const baseScale = width < 768 ? 0.6 : 1;
+
+      // Handle Camera State Machine
+      if (time - lastSwitchTime > switchInterval) {
+        lastSwitchTime = time;
+        // Randomly pick a new target:
+        // 40% chance for Top View (-1), 40% chance for a planet (0-8), 20% chance Deep Space (9)
+        const rand = Math.random();
+        if (rand < 0.4) {
+          currentTarget = -1;
+        } else if (rand < 0.8) {
+          currentTarget = Math.floor(Math.random() * planets.length);
+        } else {
+          currentTarget = 9;
+        }
+      }
+
+      // Calculate Target Camera Values
+      let tX = cx;
+      let tY = cy;
+      let tScale = baseScale;
+
+      if (currentTarget === -1) {
+        // Full Top View of Solar System
+        tX = cx;
+        tY = cy;
+        tScale = baseScale * 0.9;
+      } else if (currentTarget === 9) {
+        // Deep Space Drift (Looking somewhere far out)
+        tX = cx + Math.sin(time * 0.00005) * 800;
+        tY = cy + Math.cos(time * 0.00005) * 800;
+        tScale = baseScale * 1.5;
+      } else {
+        // Focusing on a specific planet
+        const p = planets[currentTarget];
+        const pDist = p.dist * baseScale;
+        const angle = time * p.speed + (currentTarget * 45); 
+        tX = cx + Math.cos(angle) * pDist;
+        tY = cy + Math.sin(angle) * pDist;
+        tScale = baseScale * 4.5; // Zoom in close!
+      }
+
+      // Smooth camera interpolation (lerp)
+      camX += (tX - camX) * 0.012;
+      camY += (tY - camY) * 0.012;
+      camScale += (tScale - camScale) * 0.012;
+
+      // Deep space galactic clouds (Static relative to screen for ambient feel)
+      const t = time * 0.00002; 
       const g1 = ctx.createRadialGradient(
         cx + Math.sin(t) * 100, cy + Math.cos(t) * 100, 0, 
         cx, cy, width * 0.8
@@ -91,29 +151,38 @@ export const GalaxyBackground: React.FC = () => {
       ctx.fillStyle = g1;
       ctx.fillRect(0, 0, width, height);
 
-      // Drifting Stars
+      // Drifting Stars with Parallax based on camera movement
       stars.forEach(star => {
         star.x -= star.speed;
-        star.y -= star.speed * 0.1;
+        star.y -= star.speed * 0.5; // Drift diagonally
+        
         star.alpha += star.dAlpha;
         if (star.alpha <= 0.1 || star.alpha >= 1) star.dAlpha *= -1;
 
-        if (star.x < 0) { star.x = width; star.y = Math.random() * height; }
-        if (star.y < 0) { star.y = height; star.x = Math.random() * width; }
+        // Calculate parallax position (smaller z means moves more with camera)
+        const prxX = star.x + (cx - camX) / star.z;
+        const prxY = star.y + (cy - camY) / star.z;
+        
+        // Wrap around seamlessly
+        const wrappedX = ((prxX % width) + width) % width;
+        const wrappedY = ((prxY % height) + height) % height;
 
         ctx.beginPath();
-        ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+        ctx.arc(wrappedX, wrappedY, star.radius, 0, Math.PI * 2);
         ctx.fillStyle = star.color;
         ctx.globalAlpha = Math.max(0, Math.min(1, star.alpha));
         ctx.fill();
       });
       ctx.globalAlpha = 1.0;
 
-      const scale = width < 768 ? 0.6 : 1;
-      const time = Date.now();
+      // --- BEGIN WORLD SPACE (Planets & Sun) ---
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(camScale, camScale);
+      ctx.translate(-camX, -camY);
 
       // Draw Sun (Realistic rotating image + glow)
-      const sunR = 60 * scale;
+      const sunR = 60 * baseScale;
       ctx.shadowBlur = 60;
       ctx.shadowColor = '#f59e0b';
       
@@ -145,13 +214,14 @@ export const GalaxyBackground: React.FC = () => {
 
       // Draw Planets with High-Res NASA Images and 3D Shading
       planets.forEach((p, index) => {
-        const pR = p.r * scale;
-        const pDist = p.dist * scale;
+        const pR = p.r * baseScale;
+        const pDist = p.dist * baseScale;
 
         // Orbit path line (faint)
         ctx.beginPath();
         ctx.arc(cx, cy, pDist, 0, Math.PI * 2);
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+        ctx.lineWidth = 1;
         ctx.stroke();
 
         // Calculate exact planet position
@@ -164,13 +234,13 @@ export const GalaxyBackground: React.FC = () => {
           ctx.beginPath();
           ctx.ellipse(px, py, pR * 2.4, pR * 0.6, angle + Math.PI/4, 0, Math.PI * 2);
           ctx.strokeStyle = 'rgba(230, 210, 160, 0.35)';
-          ctx.lineWidth = 3 * scale;
+          ctx.lineWidth = 3 * baseScale;
           ctx.stroke();
           
           ctx.beginPath();
           ctx.ellipse(px, py, pR * 2.8, pR * 0.8, angle + Math.PI/4, 0, Math.PI * 2);
           ctx.strokeStyle = 'rgba(230, 210, 160, 0.15)';
-          ctx.lineWidth = 1 * scale;
+          ctx.lineWidth = 1 * baseScale;
           ctx.stroke();
         }
 
@@ -226,6 +296,8 @@ export const GalaxyBackground: React.FC = () => {
           ctx.fill();
         }
       });
+      
+      ctx.restore(); // --- END WORLD SPACE ---
 
       animationFrameId = requestAnimationFrame(render);
     };
