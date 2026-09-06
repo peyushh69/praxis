@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { Play, Pause, Coffee, X } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Play, Pause, Coffee, X, Maximize, Minimize } from 'lucide-react';
 import { TimerMode, AppSettings, TaskItem } from '../types';
 
 interface RetroConsoleFocusProps {
@@ -35,10 +35,54 @@ export const RetroConsoleFocus: React.FC<RetroConsoleFocusProps> = ({
   onPause,
   onSwitchMode,
 }) => {
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const handleClose = () => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(console.warn);
+    }
+    // Type casting window as any to access screen.orientation for various browsers
+    const navWindow = window as any;
+    if (navWindow.screen?.orientation?.unlock) {
+      navWindow.screen.orientation.unlock();
+    }
+    onClose();
+  };
+
+  const toggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+        const navWindow = window as any;
+        if (navWindow.screen?.orientation?.lock) {
+          await navWindow.screen.orientation.lock('landscape').catch(console.warn);
+        }
+      } else {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        }
+        const navWindow = window as any;
+        if (navWindow.screen?.orientation?.unlock) {
+          navWindow.screen.orientation.unlock();
+        }
+      }
+    } catch (err) {
+      console.warn('Fullscreen/rotation toggle failed:', err);
+    }
+  };
+
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') handleClose();
       else if (e.code === 'Space') {
         e.preventDefault();
         if (isRunning) onPause();
@@ -47,7 +91,7 @@ export const RetroConsoleFocus: React.FC<RetroConsoleFocusProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isRunning, onStart, onPause, onClose]);
+  }, [isOpen, isRunning, onStart, onPause, handleClose]);
 
   if (!isOpen) return null;
 
@@ -63,14 +107,26 @@ export const RetroConsoleFocus: React.FC<RetroConsoleFocusProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-2xl flex flex-col items-center justify-center select-none">
-      {/* Minimal Exit Button */}
-      <button 
-        onClick={onClose}
-        className="absolute top-6 right-6 sm:top-8 sm:right-8 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white/90 border border-white/10 hover:border-white/20 shadow-[0_4px_30px_rgba(0,0,0,0.1)] backdrop-blur-xl transition-all cursor-pointer"
-        title="Exit Focus Mode (ESC)"
-      >
-        <X size={20} strokeWidth={2} />
-      </button>
+      {/* Top Right Controls */}
+      <div className="absolute top-6 right-6 sm:top-8 sm:right-8 flex items-center gap-3">
+        {/* Fullscreen / Rotate Button */}
+        <button 
+          onClick={toggleFullscreen}
+          className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white/90 border border-white/10 hover:border-white/20 shadow-[0_4px_30px_rgba(0,0,0,0.1)] backdrop-blur-xl transition-all cursor-pointer"
+          title={isFullscreen ? "Exit Fullscreen" : "Fullscreen / Rotate Landscape"}
+        >
+          {isFullscreen ? <Minimize size={18} strokeWidth={2} /> : <Maximize size={18} strokeWidth={2} />}
+        </button>
+
+        {/* Minimal Exit Button */}
+        <button 
+          onClick={handleClose}
+          className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white/90 border border-white/10 hover:border-white/20 shadow-[0_4px_30px_rgba(0,0,0,0.1)] backdrop-blur-xl transition-all cursor-pointer"
+          title="Exit Focus Mode (ESC)"
+        >
+          <X size={20} strokeWidth={2} />
+        </button>
+      </div>
 
       {/* Massive Centered Timer */}
       <div className="flex-1 w-full flex items-center justify-center p-4">
