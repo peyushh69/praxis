@@ -196,9 +196,16 @@ export const App: React.FC = () => {
     }
   };
 
+  // ---------------------------------------------------------------------------
+  // Robust Background Timer Engine
+  // ---------------------------------------------------------------------------
+  const expectedEndTimeRef = useRef<number | null>(null);
+  const latestCompleteHandler = useRef<() => void>(() => {});
+
   // Update total duration when mode or settings change and timer is stopped
   const switchMode = (newMode: TimerMode, autoStart = false) => {
     setIsRunning(false);
+    expectedEndTimeRef.current = null;
     setMode(newMode);
     let durationMins = settings.focusDuration;
     if (newMode === 'shortBreak') durationMins = settings.shortBreakDuration;
@@ -209,23 +216,56 @@ export const App: React.FC = () => {
     setTotalTime(seconds);
 
     if (autoStart) {
-      setTimeout(() => setIsRunning(true), 100);
+      setTimeout(() => {
+        expectedEndTimeRef.current = Date.now() + seconds * 1000;
+        setIsRunning(true);
+      }, 100);
     }
   };
 
   // Timer Tick Engine
   useEffect(() => {
+    const checkTimer = () => {
+      if (!expectedEndTimeRef.current || !isRunning) return;
+      
+      const now = Date.now();
+      const remainingMs = expectedEndTimeRef.current - now;
+      const remainingSecs = Math.round(remainingMs / 1000);
+
+      if (remainingSecs <= 0) {
+        expectedEndTimeRef.current = null;
+        setTimeLeft(0);
+        if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+        latestCompleteHandler.current();
+      } else {
+        setTimeLeft(remainingSecs);
+      }
+    };
+
     if (isRunning) {
-      timerIntervalRef.current = window.setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1) {
-            handleTimerComplete();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+      // If we just started and don't have an end time, set it
+      if (!expectedEndTimeRef.current) {
+        expectedEndTimeRef.current = Date.now() + timeLeft * 1000;
+      }
+
+      timerIntervalRef.current = window.setInterval(checkTimer, 500);
+
+      // Listen for when tab comes back to foreground (fixes background throttling instantly)
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible') {
+          checkTimer();
+        }
+      };
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      return () => {
+        if (timerIntervalRef.current) {
+          clearInterval(timerIntervalRef.current);
+        }
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
     } else {
+      expectedEndTimeRef.current = null;
       if (timerIntervalRef.current) {
         clearInterval(timerIntervalRef.current);
         timerIntervalRef.current = null;
@@ -237,7 +277,7 @@ export const App: React.FC = () => {
         clearInterval(timerIntervalRef.current);
       }
     };
-  }, [isRunning, mode, settings, completedCycles, activeTaskId, tasks]);
+  }, [isRunning]); // Removed other dependencies so interval isn't recreated constantly
 
   // Document Title update
   useEffect(() => {
@@ -307,19 +347,27 @@ export const App: React.FC = () => {
     }
   };
 
+  // Keep a ref to the latest handler to avoid stale closures in the interval
+  useEffect(() => {
+    latestCompleteHandler.current = handleTimerComplete;
+  }, [handleTimerComplete]);
+
   const handleStart = () => {
     if (settings.soundEnabled) cleanAudio.playStart(settings.soundVolume);
+    expectedEndTimeRef.current = Date.now() + timeLeft * 1000;
     setIsRunning(true);
   };
 
   const handlePause = () => {
     if (settings.soundEnabled) cleanAudio.playPause(settings.soundVolume);
+    expectedEndTimeRef.current = null;
     setIsRunning(false);
   };
 
   const handleReset = () => {
     if (settings.soundEnabled) cleanAudio.playClick(settings.soundVolume);
     setIsRunning(false);
+    expectedEndTimeRef.current = null;
     let durationMins = settings.focusDuration;
     if (mode === 'shortBreak') durationMins = settings.shortBreakDuration;
     if (mode === 'longBreak') durationMins = settings.longBreakDuration;
@@ -340,6 +388,9 @@ export const App: React.FC = () => {
     if (settings.soundEnabled) cleanAudio.playClick(settings.soundVolume);
     setTimeLeft((prev) => prev + 300);
     setTotalTime((prev) => prev + 300);
+    if (isRunning && expectedEndTimeRef.current) {
+        expectedEndTimeRef.current += 300 * 1000;
+    }
   };
 
   const handleUpdateSettings = (newPartial: Partial<AppSettings>) => {
