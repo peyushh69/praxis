@@ -2,7 +2,7 @@ import React from 'react';
 import { Play, Pause, RotateCcw, SkipForward, Plus, Volume2, VolumeX, CheckSquare, Maximize2 } from 'lucide-react';
 import { TimerMode, AppSettings, TaskItem } from '../types';
 
-interface PixelTimerProps {
+export interface PixelTimerProps {
   mode: TimerMode;
   timeLeft: number;
   totalTime: number;
@@ -18,7 +18,6 @@ interface PixelTimerProps {
   settings: AppSettings;
   onUpdateSettings: (newSettings: Partial<AppSettings>) => void;
   activeTask?: TaskItem | null;
-  onOpenFullscreenConsole?: () => void;
 }
 
 export const PixelTimer: React.FC<PixelTimerProps> = ({
@@ -37,7 +36,6 @@ export const PixelTimer: React.FC<PixelTimerProps> = ({
   settings,
   onUpdateSettings,
   activeTask,
-  onOpenFullscreenConsole,
 }) => {
   const hours = Math.floor(timeLeft / 3600);
   const minutes = Math.floor((timeLeft % 3600) / 60);
@@ -69,7 +67,7 @@ export const PixelTimer: React.FC<PixelTimerProps> = ({
   return (
     <div className="w-full max-w-2xl mx-auto font-pixel-heading select-none">
       {/* Outer Gaming Console Chassis with Hardware Bevels, Corner Screws & Grips */}
-      <div className="relative rounded-2xl bg-gradient-to-b from-[#1c1e28] via-[#12131b] to-[#090a0f] border-2 border-[#2e3244] shadow-[0_15px_35px_rgba(0,0,0,0.9),inset_0_1px_1px_rgba(255,255,255,0.15)] p-2 sm:p-3 overflow-hidden">
+      <div className="relative rounded-2xl bg-gradient-to-b from-[#1c1e28] via-[#12131b] to-[#090a0f] border-2 border-[#2e3244] shadow-[0_15px_35px_rgba(0,0,0,0.9),inset_0_1px_1px_rgba(255,255,255,0.15)] overflow-hidden p-2 sm:p-3">
         
         {/* Subtle Hardware Corner Screws */}
         <div className="absolute top-2.5 left-2.5 w-2 h-2 rounded-full bg-[#3d4256] border border-[#5a6078] flex items-center justify-center opacity-70">
@@ -158,50 +156,38 @@ export const PixelTimer: React.FC<PixelTimerProps> = ({
               >
                 {settings.soundEnabled ? <Volume2 size={13} /> : <VolumeX size={13} />}
               </button>
-
-              {/* Full Screen Button on Right Side */}
-              {onOpenFullscreenConsole && (
-                <button
-                  onClick={onOpenFullscreenConsole}
-                  className="px-2.5 py-1.5 bg-[#181a24] hover:bg-[#ff3b00] hover:text-black text-[#ff3b00] border border-[#ff3b00] text-[8.5px] font-pixel-heading font-bold flex items-center gap-1.5 cursor-pointer shadow-[0_0_8px_rgba(255,59,0,0.3)] hover:shadow-[0_0_12px_#ff3b00] transition-all uppercase rounded-xs"
-                  title="Open Fullscreen Focus Mode"
-                >
-                  <Maximize2 size={12} className="shrink-0" />
-                  <span>FULL SCREEN</span>
-                </button>
-              )}
             </div>
           </div>
 
           {/* Hero Display Panel (Inspired by reference UI neon orange header card) */}
           <div className="p-3 sm:p-5 bg-[#0b0c11]">
-            <div className="pixel-box-orange px-3.5 py-4 sm:p-6 relative overflow-hidden rounded-lg shadow-[inset_0_0_20px_rgba(0,0,0,0.3)]">
+            <div className="pixel-box-orange w-full relative overflow-hidden rounded-lg shadow-[inset_0_0_20px_rgba(0,0,0,0.3)] flex flex-col px-3.5 py-4 sm:p-6 justify-center">
               
               {/* Top Sub-Labels on Orange Card */}
-              <div className="flex items-center justify-between text-[10px] font-pixel-label font-bold text-black border-b border-black/20 pb-2 mb-3">
+              <div className="flex items-center justify-between font-pixel-label font-bold text-black border-b border-black/20 pb-2 sm:pb-3 mb-3 w-full text-[10px]">
                 <div className="flex items-center gap-2">
                   <span className="uppercase tracking-wider">
                     {mode === 'focus' ? 'FOCUS SESSION' : mode === 'shortBreak' ? 'SHORT BREAK' : 'LONG BREAK'}
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="bg-black text-[#ff3b00] px-2 py-0.5 text-[8px] font-pixel-heading font-black">
+                  <span className="bg-black text-[#ff3b00] font-pixel-heading font-black px-2 py-0.5 text-[8px]">
                     {isRunning ? 'RUNNING' : 'PAUSED'}
                   </span>
-                  <span className="text-[7.5px] font-mono font-bold">
+                  <span className="font-mono font-bold text-[7.5px]">
                     P-01
                   </span>
                 </div>
               </div>
 
               {/* Big Pixel Countdown Numbers */}
-              <div className="my-2 select-none flex items-center justify-center overflow-hidden">
+              <div className="my-2 select-none flex-1 flex flex-col items-center justify-center w-full overflow-hidden">
                 <div
-                  className={`font-pixel-heading font-extrabold text-black leading-none drop-shadow-xs tabular-nums whitespace-nowrap text-center ${
+                  className={`font-pixel-heading font-extrabold text-black drop-shadow-xs tabular-nums whitespace-nowrap text-center tracking-tight ${
                     showHours
-                      ? 'text-[1.65rem] min-[360px]:text-[1.95rem] min-[420px]:text-4xl sm:text-5xl md:text-6xl tracking-tight'
-                      : 'text-4xl min-[360px]:text-5xl sm:text-6xl md:text-7xl tracking-tight'
-                  }`}
+                      ? 'text-[1.65rem] min-[360px]:text-[1.95rem] min-[420px]:text-4xl sm:text-5xl md:text-6xl'
+                      : 'text-4xl min-[360px]:text-5xl sm:text-6xl md:text-7xl'
+                  } leading-none py-2`}
                 >
                   {showHours
                     ? `${formattedHours}:${formattedMinutes}:${formattedSeconds}`
@@ -210,24 +196,24 @@ export const PixelTimer: React.FC<PixelTimerProps> = ({
               </div>
 
               {/* Sub-Metrics Strip */}
-              <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t-2 border-black/20 text-black">
+              <div className="grid grid-cols-3 gap-2 sm:gap-4 mt-4 pt-3 sm:pt-4 border-t-2 border-black/20 text-black w-full">
                 <div className="text-center">
-                  <div className="text-[8px] font-pixel-label font-bold uppercase opacity-80">TARGET</div>
-                  <div className="text-[10px] font-pixel-heading font-black mt-0.5">
+                  <div className="font-pixel-label font-bold uppercase opacity-80 text-[8px]">TARGET</div>
+                  <div className="font-pixel-heading font-black mt-0.5 text-[10px]">
                     {targetDisplay}
                   </div>
                 </div>
 
                 <div className="text-center border-x border-black/20">
-                  <div className="text-[8px] font-pixel-label font-bold uppercase opacity-80">INTERVAL</div>
-                  <div className="text-[10px] font-pixel-heading font-black mt-0.5">
+                  <div className="font-pixel-label font-bold uppercase opacity-80 text-[8px]">INTERVAL</div>
+                  <div className="font-pixel-heading font-black mt-0.5 text-[10px]">
                     {(completedCycles % 4) + 1}/4
                   </div>
                 </div>
 
                 <div className="text-center">
-                  <div className="text-[8px] font-pixel-label font-bold uppercase opacity-80">PROGRESS</div>
-                  <div className="text-[10px] font-pixel-heading font-black mt-0.5">
+                  <div className="font-pixel-label font-bold uppercase opacity-80 text-[8px]">PROGRESS</div>
+                  <div className="font-pixel-heading font-black mt-0.5 text-[10px]">
                     {Math.round(progressPercent)}%
                   </div>
                 </div>
@@ -276,15 +262,15 @@ export const PixelTimer: React.FC<PixelTimerProps> = ({
             {/* =========================================================================
                 AUTHENTIC RETRO GAMING CONSOLE CONTROL DECK (ARCADE ACTION BUTTONS)
                 ========================================================================= */}
-            <div className="mt-4 p-3.5 sm:p-4 bg-gradient-to-b from-[#151722] via-[#0f1017] to-[#0a0b10] border border-[#282d3e] rounded-xl shadow-[inset_0_2px_4px_rgba(255,255,255,0.05)]">
+            <div className="mt-4 bg-gradient-to-b from-[#151722] via-[#0f1017] to-[#0a0b10] border border-[#282d3e] rounded-xl shadow-[inset_0_2px_4px_rgba(255,255,255,0.05)] p-3.5 sm:p-4">
               
               {/* Arcade Action Buttons Deck */}
-              <div className="flex items-center justify-center gap-2.5 sm:gap-3 flex-wrap">
+              <div className="flex items-center justify-center flex-wrap gap-2.5 sm:gap-3">
                 
                 {/* Primary START / PAUSE Button */}
                 <button
                   onClick={isRunning ? onPause : onStart}
-                  className={`px-6 py-3 rounded-full text-[11px] flex items-center gap-2 cursor-pointer font-pixel-heading font-black tracking-wider transition-all transform active:scale-95 shadow-[0_4px_12px_rgba(0,0,0,0.6)] ${
+                  className={`px-6 py-3 text-[11px] rounded-full flex items-center gap-2 cursor-pointer font-pixel-heading font-black tracking-wider transition-all transform active:scale-95 shadow-[0_4px_12px_rgba(0,0,0,0.6)] ${
                     isRunning
                       ? 'bg-gradient-to-b from-[#2a2c3a] to-[#12131a] border-2 border-[#ff3b00] text-[#ff3b00] shadow-[0_0_15px_rgba(255,59,0,0.4)]'
                       : 'bg-gradient-to-b from-[#ff5500] via-[#ff3b00] to-[#d62d00] border-2 border-[#ffa17a] text-black shadow-[0_0_18px_rgba(255,59,0,0.6)] hover:brightness-110'
@@ -307,7 +293,7 @@ export const PixelTimer: React.FC<PixelTimerProps> = ({
                 {/* +5M Pill Button */}
                 <button
                   onClick={onAddFiveMinutes}
-                  className="bg-gradient-to-b from-[#252836] to-[#12131c] hover:from-[#323648] hover:to-[#1c1d29] border-2 border-[#3d4257] hover:border-[#ff3b00] text-zinc-200 hover:text-white px-4 py-2.5 rounded-full text-[10px] font-pixel-heading flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-md"
+                  className="bg-gradient-to-b from-[#252836] to-[#12131c] hover:from-[#323648] hover:to-[#1c1d29] border-2 border-[#3d4257] hover:border-[#ff3b00] text-zinc-200 hover:text-white rounded-full font-pixel-heading flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-md px-4 py-2.5 text-[10px]"
                   title="Add 5 Minutes (+5M)"
                 >
                   <Plus size={13} className="text-[#ff3b00]" />
@@ -317,7 +303,7 @@ export const PixelTimer: React.FC<PixelTimerProps> = ({
                 {/* RESET Pill Button */}
                 <button
                   onClick={onReset}
-                  className="bg-gradient-to-b from-[#20222e] to-[#0f1017] hover:from-[#2a2d3d] hover:to-[#161722] border-2 border-[#333748] hover:border-zinc-300 text-zinc-300 hover:text-white px-4 py-2.5 rounded-full text-[10px] font-pixel-heading flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-md"
+                  className="bg-gradient-to-b from-[#20222e] to-[#0f1017] hover:from-[#2a2d3d] hover:to-[#161722] border-2 border-[#333748] hover:border-zinc-300 text-zinc-300 hover:text-white rounded-full font-pixel-heading flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-md px-4 py-2.5 text-[10px]"
                   title="Reset Timer"
                 >
                   <RotateCcw size={12} />
@@ -327,7 +313,7 @@ export const PixelTimer: React.FC<PixelTimerProps> = ({
                 {/* SKIP Pill Button */}
                 <button
                   onClick={onSkip}
-                  className="bg-gradient-to-b from-[#20222e] to-[#0f1017] hover:from-[#2a2d3d] hover:to-[#161722] border-2 border-[#333748] hover:border-zinc-300 text-zinc-300 hover:text-white px-4 py-2.5 rounded-full text-[10px] font-pixel-heading flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-md"
+                  className="bg-gradient-to-b from-[#20222e] to-[#0f1017] hover:from-[#2a2d3d] hover:to-[#161722] border-2 border-[#333748] hover:border-zinc-300 text-zinc-300 hover:text-white rounded-full font-pixel-heading flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-md px-4 py-2.5 text-[10px]"
                   title="Skip Session"
                 >
                   <SkipForward size={12} />

@@ -41,7 +41,6 @@ import { StatsOverview } from './components/StatsOverview';
 import { RadialHabitTracker } from './components/RadialHabitTracker';
 import { SettingsModal } from './components/SettingsModal';
 import { DayDetailsModal } from './components/DayDetailsModal';
-import { RetroConsoleFocus } from './components/RetroConsoleFocus';
 import { InstallApkModal } from './components/InstallApkModal';
 
 export const App: React.FC = () => {
@@ -70,7 +69,6 @@ export const App: React.FC = () => {
   // Modals state
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [isRetroConsoleOpen, setIsRetroConsoleOpen] = useState(false);
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
 
   // Day logs and stats calculation (memoized)
@@ -767,7 +765,6 @@ export const App: React.FC = () => {
           settings={settings}
           onUpdateSettings={handleUpdateSettings}
           activeTask={activeTask}
-          onOpenFullscreenConsole={() => setIsRetroConsoleOpen(true)}
         />
 
         {/* Daily Consistency Green Box Heatmap (Matrix positioned cleanly in flow) */}
@@ -818,29 +815,6 @@ export const App: React.FC = () => {
           dayLog={dayLogs[selectedDate]}
         />
       )}
-
-      {/* Fullscreen Retro Gaming Console Focus Mode */}
-      <RetroConsoleFocus
-        isOpen={isRetroConsoleOpen}
-        onClose={() => setIsRetroConsoleOpen(false)}
-        mode={mode}
-        timeLeft={timeLeft}
-        totalTime={totalTime}
-        isRunning={isRunning}
-        onStart={handleStart}
-        onPause={handlePause}
-        onReset={handleReset}
-        onSkip={handleSkip}
-        onAddFiveMinutes={handleAddFiveMinutes}
-        onSubtractFiveMinutes={() => setTimeLeft((prev) => Math.max(60, prev - 300))}
-        onSwitchMode={(m) => switchMode(m, false)}
-        completedCycles={completedCycles}
-        settings={settings}
-        onUpdateSettings={handleUpdateSettings}
-        activeTask={activeTask}
-        todayMinutes={streakStats.todayMinutes}
-        currentStreak={streakStats.currentStreak}
-      />
 
       {/* Android App & APK Installation Guide Modal */}
       <InstallApkModal
