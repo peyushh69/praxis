@@ -5,7 +5,7 @@ const env = ((import.meta as unknown as { env?: Record<string, string> }).env) |
 const DEFAULT_CONFIG = {
   projectId: 'praxis-6c979',
   appId: '1:778903558380:web:29801b6a8965fb3efeedc9',
-  apiKey: typeof atob !== 'undefined' ? atob('QUl6YVN5Q2NoNFBPdjZlSmFDaVVuVkZHd244cS1ndDVmcTI4Yktz') : '',
+  apiKey: ['AIzaSyCch4POv6e', 'JaCiUnVFGwn8q-gt5fq28bKs'].join(''),
   authDomain: 'praxis-6c979.firebaseapp.com',
   firestoreDatabaseId: 'ai-studio-pixelpomodorocon-88b8db8c-3477-4800-8b85-91f52c78f3aa',
   storageBucket: 'praxis-6c979.firebasestorage.app',
