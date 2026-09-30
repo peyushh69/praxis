@@ -8,8 +8,6 @@
  * 3. Never exposes raw plaintext Google Cloud API keys matching GitHub's regex filters.
  */
 
-const env = ((import.meta as unknown as { env?: Record<string, string> }).env) || {};
-
 // Safely reconstruct fallback key at runtime so automated repository scanners (GitHub Secret Scanning)
 // do not trigger false positive email alerts on public git repositories.
 const getFallbackApiKey = (): string => {
@@ -34,13 +32,13 @@ const DEFAULT_CONFIG = {
 };
 
 export const firebaseConfig = {
-  apiKey: env.VITE_FIREBASE_API_KEY || DEFAULT_CONFIG.apiKey,
-  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || DEFAULT_CONFIG.authDomain,
-  projectId: env.VITE_FIREBASE_PROJECT_ID || DEFAULT_CONFIG.projectId,
-  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || DEFAULT_CONFIG.storageBucket,
-  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || DEFAULT_CONFIG.messagingSenderId,
-  appId: env.VITE_FIREBASE_APP_ID || DEFAULT_CONFIG.appId,
-  measurementId: env.VITE_FIREBASE_MEASUREMENT_ID || DEFAULT_CONFIG.measurementId,
-  firestoreDatabaseId: env.VITE_FIREBASE_DATABASE_ID || DEFAULT_CONFIG.firestoreDatabaseId,
-  oAuthClientId: env.VITE_FIREBASE_OAUTH_CLIENT_ID || DEFAULT_CONFIG.oAuthClientId,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || DEFAULT_CONFIG.apiKey,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || DEFAULT_CONFIG.authDomain,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || DEFAULT_CONFIG.projectId,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || DEFAULT_CONFIG.storageBucket,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || DEFAULT_CONFIG.messagingSenderId,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || DEFAULT_CONFIG.appId,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || DEFAULT_CONFIG.measurementId,
+  firestoreDatabaseId: import.meta.env.VITE_FIREBASE_DATABASE_ID || DEFAULT_CONFIG.firestoreDatabaseId,
+  oAuthClientId: import.meta.env.VITE_FIREBASE_OAUTH_CLIENT_ID || DEFAULT_CONFIG.oAuthClientId,
 };
