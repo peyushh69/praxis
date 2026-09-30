@@ -1,12 +1,11 @@
 {
-  "projectId": "praxis-6c979",
-  "appId": "1:778903558380:web:29801b6a8965fb3efeedc9",
-  "apiKey": "AIzaSyCch4POv6eJaCiUnVFGwn8q-gt5fq28bKs",
-  "authDomain": "praxis-6c979.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-pixelpomodorocon-88b8db8c-3477-4800-8b85-91f52c78f3aa",
-  "storageBucket": "praxis-6c979.firebasestorage.app",
-  "messagingSenderId": "778903558380",
-  "measurementId": "G-BE4WXG6466",
-  "oAuthClientId": "778903558380-naa8j13h8i25rjo5ldjljdqvu4cusql2.apps.googleusercontent.com",
+  "projectId": "gen-lang-client-0907550266",
+  "appId": "1:279328399176:web:a51364480588b75e359d7d",
+  "apiKey": "AIzaSyCFZuxFmAL5fMptIRGDWB5AQupPMRxJrs4",
+  "authDomain": "gen-lang-client-0907550266.firebaseapp.com",
+  "storageBucket": "gen-lang-client-0907550266.firebasestorage.app",
+  "messagingSenderId": "279328399176",
+  "measurementId": "",
+  "oAuthClientId": "279328399176-ckjalnua0soqkiu58e8eh5ht8so6bl29.apps.googleusercontent.com",
   "recaptchaSiteKey": ""
 }

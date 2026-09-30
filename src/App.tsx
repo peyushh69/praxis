@@ -7,7 +7,27 @@ import {
   calculateStreakStats,
   DEFAULT_SETTINGS,
   DEFAULT_HABITS,
+  loadSettings,
+  saveSettings,
+  loadSessions,
+  saveSessions,
+  loadTasks,
+  saveTasks,
+  loadHabits,
+  saveHabits,
+  loadHabitLogs,
+  saveHabitLogs,
 } from './utils/storage';
+import {
+  saveActiveTimer,
+  loadActiveTimer,
+  clearActiveTimer,
+  backgroundTicker,
+  audioKeepAlive,
+  wakeLockManager,
+  requestNotificationPermission,
+  showDesktopNotification,
+} from './utils/timerService';
 import { cleanAudio } from './utils/audio';
 import {
   auth,
@@ -50,21 +70,57 @@ export const App: React.FC = () => {
   const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  // Persistence state
-  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
-  const [sessions, setSessions] = useState<PomodoroSession[]>([]);
-  const [tasks, setTasks] = useState<TaskItem[]>([]);
-  const [habits, setHabits] = useState<HabitItem[]>(DEFAULT_HABITS);
-  const [habitLogs, setHabitLogs] = useState<HabitProgressRecord>({});
+  // Persistence state - initialized with offline/guest local storage fallback
+  const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
+  const [sessions, setSessions] = useState<PomodoroSession[]>(() => loadSessions());
+  const [tasks, setTasks] = useState<TaskItem[]>(() => loadTasks());
+  const [habits, setHabits] = useState<HabitItem[]>(() => loadHabits());
+  const [habitLogs, setHabitLogs] = useState<HabitProgressRecord>(() => loadHabitLogs());
   const [countdownGoal, setCountdownGoal] = useState<CountdownGoal>(DEFAULT_COUNTDOWN_GOAL);
 
-  // Timer dynamic state
-  const [mode, setMode] = useState<TimerMode>('focus');
-  const [timeLeft, setTimeLeft] = useState<number>(() => DEFAULT_SETTINGS.focusDuration * 60);
-  const [totalTime, setTotalTime] = useState<number>(() => DEFAULT_SETTINGS.focusDuration * 60);
-  const [isRunning, setIsRunning] = useState<boolean>(false);
-  const [completedCycles, setCompletedCycles] = useState<number>(0);
-  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  // Timer dynamic state - initialized from active timer persistence if available
+  const [mode, setMode] = useState<TimerMode>(() => {
+    const saved = loadActiveTimer();
+    return saved ? saved.mode : 'focus';
+  });
+
+  const [timeLeft, setTimeLeft] = useState<number>(() => {
+    const saved = loadActiveTimer();
+    if (saved) {
+      if (saved.isRunning && saved.targetEndTime) {
+        const remaining = Math.round((saved.targetEndTime - Date.now()) / 1000);
+        return remaining > 0 ? remaining : 0;
+      }
+      return typeof saved.timeLeft === 'number' ? saved.timeLeft : DEFAULT_SETTINGS.focusDuration * 60;
+    }
+    return DEFAULT_SETTINGS.focusDuration * 60;
+  });
+
+  const [totalTime, setTotalTime] = useState<number>(() => {
+    const saved = loadActiveTimer();
+    return saved && saved.totalTime ? saved.totalTime : DEFAULT_SETTINGS.focusDuration * 60;
+  });
+
+  const [isRunning, setIsRunning] = useState<boolean>(() => {
+    const saved = loadActiveTimer();
+    if (saved && saved.isRunning && saved.targetEndTime) {
+      const remaining = Math.round((saved.targetEndTime - Date.now()) / 1000);
+      return remaining > 0;
+    }
+    return false;
+  });
+
+  const [completedCycles, setCompletedCycles] = useState<number>(() => {
+    const saved = loadActiveTimer();
+    return saved ? saved.completedCycles || 0 : 0;
+  });
+
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(() => {
+    const saved = loadActiveTimer();
+    return saved ? saved.activeTaskId : null;
+  });
+
+  const [completionNotice, setCompletionNotice] = useState<string | null>(null);
 
   // Modals state
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -98,18 +154,18 @@ export const App: React.FC = () => {
           console.warn('Notice: initialize user doc:', e?.message || e);
         }
       } else {
-        // User logged out: Reset UI state to empty/blank state
-        setSessions([]);
-        setTasks([]);
-        setHabits([]);
-        setHabitLogs({});
-        setSettings(DEFAULT_SETTINGS);
+        // User logged out / Guest mode: Load local data, DO NOT wipe running timer!
+        setSessions(loadSessions());
+        setTasks(loadTasks());
+        setHabits(loadHabits());
+        setHabitLogs(loadHabitLogs());
+        setSettings(loadSettings());
         setCountdownGoal(DEFAULT_COUNTDOWN_GOAL);
-        setActiveTaskId(null);
-        setCompletedCycles(0);
-        setIsRunning(false);
-        setTimeLeft(DEFAULT_SETTINGS.focusDuration * 60);
-        setTotalTime(DEFAULT_SETTINGS.focusDuration * 60);
+
+        const active = loadActiveTimer();
+        if (!active || !active.isRunning) {
+          setIsRunning(false);
+        }
       }
     });
 
@@ -195,15 +251,26 @@ export const App: React.FC = () => {
   };
 
   // ---------------------------------------------------------------------------
-  // Robust Background Timer Engine
+  // Robust Background Timer Engine & Tab-Reload Resilient Synchronization
   // ---------------------------------------------------------------------------
-  const expectedEndTimeRef = useRef<number | null>(null);
+  const expectedEndTimeRef = useRef<number | null>(() => {
+    const saved = loadActiveTimer();
+    if (saved && saved.isRunning && saved.targetEndTime) {
+      const remaining = Math.round((saved.targetEndTime - Date.now()) / 1000);
+      return remaining > 0 ? saved.targetEndTime : null;
+    }
+    return null;
+  });
   const latestCompleteHandler = useRef<() => void>(() => {});
 
   // Update total duration when mode or settings change and timer is stopped
   const switchMode = (newMode: TimerMode, autoStart = false) => {
     setIsRunning(false);
     expectedEndTimeRef.current = null;
+    backgroundTicker.stop();
+    audioKeepAlive.stop();
+    wakeLockManager.release();
+
     setMode(newMode);
     let durationMins = settings.focusDuration;
     if (newMode === 'shortBreak') durationMins = settings.shortBreakDuration;
@@ -215,17 +282,41 @@ export const App: React.FC = () => {
 
     if (autoStart) {
       setTimeout(() => {
-        expectedEndTimeRef.current = Date.now() + seconds * 1000;
+        const endTime = Date.now() + seconds * 1000;
+        expectedEndTimeRef.current = endTime;
+        saveActiveTimer({
+          mode: newMode,
+          targetEndTime: endTime,
+          timeLeft: seconds,
+          totalTime: seconds,
+          isRunning: true,
+          startedAt: Date.now(),
+          completedCycles,
+          activeTaskId,
+          lastUpdated: Date.now(),
+        });
         setIsRunning(true);
       }, 100);
+    } else {
+      saveActiveTimer({
+        mode: newMode,
+        targetEndTime: null,
+        timeLeft: seconds,
+        totalTime: seconds,
+        isRunning: false,
+        startedAt: Date.now(),
+        completedCycles,
+        activeTaskId,
+        lastUpdated: Date.now(),
+      });
     }
   };
 
-  // Timer Tick Engine
+  // Timer Tick Engine with Worker + Visibility Sync
   useEffect(() => {
     const checkTimer = () => {
       if (!expectedEndTimeRef.current || !isRunning) return;
-      
+
       const now = Date.now();
       const remainingMs = expectedEndTimeRef.current - now;
       const remainingSecs = Math.round(remainingMs / 1000);
@@ -233,51 +324,157 @@ export const App: React.FC = () => {
       if (remainingSecs <= 0) {
         expectedEndTimeRef.current = null;
         setTimeLeft(0);
-        if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+        backgroundTicker.stop();
+        audioKeepAlive.stop();
+        wakeLockManager.release();
         latestCompleteHandler.current();
       } else {
         setTimeLeft(remainingSecs);
+        // Periodic touch to update lastUpdated in localStorage
+        saveActiveTimer({
+          mode,
+          targetEndTime: expectedEndTimeRef.current,
+          timeLeft: remainingSecs,
+          totalTime,
+          isRunning: true,
+          startedAt: expectedEndTimeRef.current - totalTime * 1000,
+          completedCycles,
+          activeTaskId,
+          lastUpdated: now,
+        });
       }
     };
 
     if (isRunning) {
-      // If we just started and don't have an end time, set it
       if (!expectedEndTimeRef.current) {
         expectedEndTimeRef.current = Date.now() + timeLeft * 1000;
       }
 
-      timerIntervalRef.current = window.setInterval(checkTimer, 500);
+      // 1. Start dedicated Web Worker (immune to browser window interval throttling)
+      backgroundTicker.start(checkTimer);
 
-      // Listen for when tab comes back to foreground (fixes background throttling instantly)
+      // 2. Start silent audio keep-alive (exempts tab from Chrome Memory Saver discarding)
+      audioKeepAlive.start();
+
+      // 3. Keep screen/system awake if supported
+      wakeLockManager.request();
+
+      // 4. Save to persistent localStorage immediately
+      saveActiveTimer({
+        mode,
+        targetEndTime: expectedEndTimeRef.current,
+        timeLeft,
+        totalTime,
+        isRunning: true,
+        startedAt: expectedEndTimeRef.current - totalTime * 1000,
+        completedCycles,
+        activeTaskId,
+        lastUpdated: Date.now(),
+      });
+
+      // 5. Instantly catch up when user focuses tab or switches back to tab
       const handleVisibilityChange = () => {
         if (document.visibilityState === 'visible') {
           checkTimer();
         }
       };
+      const handleWindowFocus = () => {
+        checkTimer();
+      };
+
       document.addEventListener('visibilitychange', handleVisibilityChange);
+      window.addEventListener('focus', handleWindowFocus);
 
       return () => {
-        if (timerIntervalRef.current) {
-          clearInterval(timerIntervalRef.current);
-        }
+        backgroundTicker.stop();
+        audioKeepAlive.stop();
+        wakeLockManager.release();
         document.removeEventListener('visibilitychange', handleVisibilityChange);
+        window.removeEventListener('focus', handleWindowFocus);
       };
     } else {
-      expectedEndTimeRef.current = null;
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-        timerIntervalRef.current = null;
+      backgroundTicker.stop();
+      audioKeepAlive.stop();
+      wakeLockManager.release();
+    }
+  }, [isRunning, mode, totalTime, completedCycles, activeTaskId]);
+
+  // Initial recovery check on mount (recovers session if tab was discarded/reloaded after timer completed)
+  useEffect(() => {
+    const saved = loadActiveTimer();
+    if (saved && saved.isRunning && saved.targetEndTime) {
+      const remainingSecs = Math.round((saved.targetEndTime - Date.now()) / 1000);
+      if (remainingSecs <= 0) {
+        // The timer expired while the tab was asleep, backgrounded, or during reload
+        latestCompleteHandler.current();
+        setCompletionNotice(
+          saved.mode === 'focus'
+            ? `🎉 25-minute focus session finished while you were away! Session logged. Great job!`
+            : `🔔 Break period finished while you were away! Ready for your next focus session?`
+        );
+      } else {
+        expectedEndTimeRef.current = saved.targetEndTime;
+        setIsRunning(true);
       }
     }
+  }, []);
 
-    return () => {
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
+  // Multi-Tab Synchronization via storage event
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'praxis_active_timer_v1') {
+        const saved = loadActiveTimer();
+        if (!saved) return;
+        setMode(saved.mode);
+        setTotalTime(saved.totalTime);
+        setCompletedCycles(saved.completedCycles || 0);
+        setActiveTaskId(saved.activeTaskId);
+
+        if (saved.isRunning && saved.targetEndTime) {
+          const remaining = Math.round((saved.targetEndTime - Date.now()) / 1000);
+          if (remaining > 0) {
+            setTimeLeft(remaining);
+            expectedEndTimeRef.current = saved.targetEndTime;
+            setIsRunning(true);
+          } else {
+            setTimeLeft(0);
+            setIsRunning(false);
+          }
+        } else {
+          setTimeLeft(saved.timeLeft);
+          expectedEndTimeRef.current = null;
+          setIsRunning(false);
+        }
       }
     };
-  }, [isRunning]); // Removed other dependencies so interval isn't recreated constantly
 
-  // Document Title update
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // Flush state on beforeunload so reload has exact timestamp
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (isRunning && expectedEndTimeRef.current) {
+        saveActiveTimer({
+          mode,
+          targetEndTime: expectedEndTimeRef.current,
+          timeLeft,
+          totalTime,
+          isRunning: true,
+          startedAt: Date.now(),
+          completedCycles,
+          activeTaskId,
+          lastUpdated: Date.now(),
+        });
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isRunning, mode, timeLeft, totalTime, completedCycles, activeTaskId]);
+
+  // Document Title update with status indicator
   useEffect(() => {
     const hrs = Math.floor(timeLeft / 3600);
     const mins = Math.floor((timeLeft % 3600) / 60);
@@ -286,17 +483,33 @@ export const App: React.FC = () => {
       hrs > 0
         ? `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
         : `${String(Math.floor(timeLeft / 60)).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-    const modeLabel = mode === 'focus' ? 'Focus' : 'Break';
-    document.title = `${timeStr} (${modeLabel}) - Praxis`;
-  }, [timeLeft, mode]);
+    const modeLabel = mode === 'focus' ? 'Focus 🍅' : 'Break ☕';
+    const playStatus = isRunning ? '▶' : '⏸';
+    document.title = `${playStatus} ${timeStr} (${modeLabel}) - Praxis`;
+  }, [timeLeft, mode, isRunning]);
 
   // Completion Handler
   const handleTimerComplete = () => {
     setIsRunning(false);
+    expectedEndTimeRef.current = null;
+    backgroundTicker.stop();
+    audioKeepAlive.stop();
+    wakeLockManager.release();
 
     if (settings.soundEnabled) {
       cleanAudio.playComplete(settings.soundVolume);
     }
+
+    // Trigger Desktop Notification
+    showDesktopNotification(
+      mode === 'focus' ? '🍅 Focus Session Complete!' : '🔔 Break Complete!',
+      {
+        body:
+          mode === 'focus'
+            ? `Awesome job! You finished ${settings.focusDuration} minutes of focused study. Time for a well-deserved break!`
+            : 'Break is over! Ready to dive back into deep focus?',
+      }
+    );
 
     if (mode === 'focus') {
       const todayStr = formatDateKey(new Date());
@@ -310,7 +523,11 @@ export const App: React.FC = () => {
         completed: true,
       };
 
-      setSessions((prev) => [...prev, newSession]);
+      setSessions((prev) => {
+        const updated = [...prev, newSession];
+        saveSessions(updated);
+        return updated;
+      });
 
       // Cloud Firestore Persistence
       if (currentUser) {
@@ -319,16 +536,20 @@ export const App: React.FC = () => {
 
       // Update associated active task if any
       if (activeTaskId) {
-        const updatedTask = tasks.find((t) => t.id === activeTaskId);
-        if (updatedTask) {
-          const newTaskObj = { ...updatedTask, completedPomodoros: updatedTask.completedPomodoros + 1 };
-          setTasks((prev) =>
-            prev.map((t) => (t.id === activeTaskId ? newTaskObj : t))
-          );
-          if (currentUser) {
-            saveTaskToFirestore(currentUser.uid, newTaskObj);
-          }
-        }
+        setTasks((prev) => {
+          const updatedTasks = prev.map((t) => {
+            if (t.id === activeTaskId) {
+              const updated = { ...t, completedPomodoros: t.completedPomodoros + 1 };
+              if (currentUser) {
+                saveTaskToFirestore(currentUser.uid, updated);
+              }
+              return updated;
+            }
+            return t;
+          });
+          saveTasks(updatedTasks);
+          return updatedTasks;
+        });
       }
 
       const nextCycleCount = completedCycles + 1;
@@ -352,7 +573,22 @@ export const App: React.FC = () => {
 
   const handleStart = () => {
     if (settings.soundEnabled) cleanAudio.playStart(settings.soundVolume);
-    expectedEndTimeRef.current = Date.now() + timeLeft * 1000;
+    // Request desktop notification permission on user action
+    requestNotificationPermission();
+
+    const endTime = Date.now() + timeLeft * 1000;
+    expectedEndTimeRef.current = endTime;
+    saveActiveTimer({
+      mode,
+      targetEndTime: endTime,
+      timeLeft,
+      totalTime,
+      isRunning: true,
+      startedAt: Date.now(),
+      completedCycles,
+      activeTaskId,
+      lastUpdated: Date.now(),
+    });
     setIsRunning(true);
   };
 
@@ -360,21 +596,50 @@ export const App: React.FC = () => {
     if (settings.soundEnabled) cleanAudio.playPause(settings.soundVolume);
     expectedEndTimeRef.current = null;
     setIsRunning(false);
+    backgroundTicker.stop();
+    audioKeepAlive.stop();
+    wakeLockManager.release();
+
+    saveActiveTimer({
+      mode,
+      targetEndTime: null,
+      timeLeft,
+      totalTime,
+      isRunning: false,
+      startedAt: Date.now(),
+      completedCycles,
+      activeTaskId,
+      lastUpdated: Date.now(),
+    });
   };
 
   const handleReset = () => {
     if (settings.soundEnabled) cleanAudio.playClick(settings.soundVolume);
-    setIsRunning(false);
     expectedEndTimeRef.current = null;
+    setIsRunning(false);
+    backgroundTicker.stop();
+    audioKeepAlive.stop();
+    wakeLockManager.release();
+
     let durationMins = settings.focusDuration;
     if (mode === 'shortBreak') durationMins = settings.shortBreakDuration;
     if (mode === 'longBreak') durationMins = settings.longBreakDuration;
-    setTimeLeft(durationMins * 60);
-    setTotalTime(durationMins * 60);
+    const seconds = durationMins * 60;
+    setTimeLeft(seconds);
+    setTotalTime(seconds);
+
+    clearActiveTimer();
   };
 
   const handleSkip = () => {
     if (settings.soundEnabled) cleanAudio.playClick(settings.soundVolume);
+    expectedEndTimeRef.current = null;
+    setIsRunning(false);
+    backgroundTicker.stop();
+    audioKeepAlive.stop();
+    wakeLockManager.release();
+    clearActiveTimer();
+
     if (mode === 'focus') {
       switchMode('shortBreak', false);
     } else {
@@ -384,16 +649,31 @@ export const App: React.FC = () => {
 
   const handleAddFiveMinutes = () => {
     if (settings.soundEnabled) cleanAudio.playClick(settings.soundVolume);
-    setTimeLeft((prev) => prev + 300);
-    setTotalTime((prev) => prev + 300);
+    const newLeft = timeLeft + 300;
+    const newTotal = totalTime + 300;
+    setTimeLeft(newLeft);
+    setTotalTime(newTotal);
+
     if (isRunning && expectedEndTimeRef.current) {
-        expectedEndTimeRef.current += 300 * 1000;
+      expectedEndTimeRef.current += 300 * 1000;
+      saveActiveTimer({
+        mode,
+        targetEndTime: expectedEndTimeRef.current,
+        timeLeft: newLeft,
+        totalTime: newTotal,
+        isRunning: true,
+        startedAt: Date.now(),
+        completedCycles,
+        activeTaskId,
+        lastUpdated: Date.now(),
+      });
     }
   };
 
   const handleUpdateSettings = (newPartial: Partial<AppSettings>) => {
     const updated = { ...settings, ...newPartial };
     setSettings(updated);
+    saveSettings(updated);
     if (currentUser) {
       saveSettingsToFirestore(currentUser.uid, updated);
     }
@@ -428,7 +708,11 @@ export const App: React.FC = () => {
       completedPomodoros: 0,
       createdAt: Date.now(),
     };
-    setTasks((prev) => [newTask, ...prev]);
+    setTasks((prev) => {
+      const updated = [newTask, ...prev];
+      saveTasks(updated);
+      return updated;
+    });
     if (!activeTaskId) {
       setActiveTaskId(newTask.id);
     }
@@ -438,8 +722,8 @@ export const App: React.FC = () => {
   };
 
   const handleToggleTask = (taskId: string) => {
-    setTasks((prev) =>
-      prev.map((t) => {
+    setTasks((prev) => {
+      const updatedTasks = prev.map((t) => {
         if (t.id === taskId) {
           const updated = { ...t, completed: !t.completed };
           if (currentUser) {
@@ -448,12 +732,18 @@ export const App: React.FC = () => {
           return updated;
         }
         return t;
-      })
-    );
+      });
+      saveTasks(updatedTasks);
+      return updatedTasks;
+    });
   };
 
   const handleDeleteTask = (taskId: string) => {
-    setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    setTasks((prev) => {
+      const updated = prev.filter((t) => t.id !== taskId);
+      saveTasks(updated);
+      return updated;
+    });
     if (activeTaskId === taskId) {
       setActiveTaskId(null);
     }
@@ -480,6 +770,7 @@ export const App: React.FC = () => {
         },
       };
 
+      saveHabitLogs(newLogs);
       if (currentUser) {
         saveHabitLogsToFirestore(currentUser.uid, newLogs);
       }
@@ -490,6 +781,7 @@ export const App: React.FC = () => {
 
   const handleUpdateHabits = (newHabits: HabitItem[]) => {
     setHabits(newHabits);
+    saveHabits(newHabits);
     if (currentUser) {
       saveHabitsToFirestore(currentUser.uid, newHabits);
     }
@@ -500,6 +792,7 @@ export const App: React.FC = () => {
       .filter((h) => h.id !== habitId)
       .map((h, idx) => ({ ...h, number: idx + 1 }));
     setHabits(updated);
+    saveHabits(updated);
 
     // Clean up habitLogs for this habit ID
     setHabitLogs((prev) => {
@@ -520,6 +813,7 @@ export const App: React.FC = () => {
           nextLogs[monthKey] = monthObj;
         }
       });
+      saveHabitLogs(nextLogs);
       if (changed && currentUser) {
         saveHabitLogsToFirestore(currentUser.uid, nextLogs);
       }
@@ -747,6 +1041,23 @@ export const App: React.FC = () => {
             }
           }}
         />
+
+        {/* Background Session Completed Notice Banner */}
+        {completionNotice && (
+          <div className="bg-[#0e1f13] border-2 border-[#39d353] text-[#39d353] px-3.5 py-3 rounded-xl flex items-center justify-between gap-3 shadow-[0_0_20px_rgba(57,211,83,0.3)] animate-in fade-in duration-200 font-pixel-heading">
+            <div className="flex items-center gap-2.5 text-[9px]">
+              <span className="text-base shrink-0">🍅</span>
+              <span>{completionNotice}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCompletionNotice(null)}
+              className="text-zinc-300 hover:text-white bg-[#17331f] hover:bg-[#1e4228] border border-[#39d353]/60 px-2 py-1 text-[8px] font-pixel-label rounded-xs cursor-pointer shrink-0 uppercase tracking-wider"
+            >
+              DISMISS
+            </button>
+          </div>
+        )}
 
         {/* Vintage Pixel/Digital Countdown Timer */}
         <PixelTimer

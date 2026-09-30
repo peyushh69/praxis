@@ -27,6 +27,7 @@ import {
   Infinity as InfinityIcon,
 } from 'lucide-react';
 import { HabitItem, HabitProgressRecord, HabitSchedule, HabitFrequency } from '../types';
+import { addHabitToCalendar } from '../services/calendarService';
 
 interface RadialHabitTrackerProps {
   habits: HabitItem[];
@@ -1147,6 +1148,14 @@ export const RadialHabitTracker: React.FC<RadialHabitTrackerProps> = ({
                             onClick={(e) => {
                               e.stopPropagation();
                               onToggleHabitDay(monthKey, habit.id, selectedDay);
+                              
+                              if (!isDoneForSelectedDay) {
+                                // Trigger calendar sync in background when habit is marked complete
+                                const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
+                                addHabitToCalendar(habit, dateStr).catch(err => {
+                                  console.error("Failed to sync to calendar", err);
+                                });
+                              }
                             }}
                             className={`px-2 py-1 text-[7.5px] font-pixel-heading border flex items-center gap-1 cursor-pointer transition-colors shrink-0 ${
                               isDoneForSelectedDay

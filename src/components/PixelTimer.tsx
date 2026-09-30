@@ -322,9 +322,20 @@ export const PixelTimer: React.FC<PixelTimerProps> = ({
               </div>
 
               {/* Console Deck Footer Bar */}
-              <div className="mt-3 pt-2 border-t border-[#1d202d] flex items-center justify-between text-[7px] font-pixel-label text-zinc-500 font-bold">
-                <span className="uppercase tracking-wider">PRAXIS CONSOLE HARDWARE INTERFACE</span>
-                <span className="font-mono text-zinc-400">STATUS: {isRunning ? 'ACTIVE LOOP' : 'STANDBY'}</span>
+              <div className="mt-3 pt-2 border-t border-[#1d202d] flex items-center justify-between text-[7.5px] sm:text-[8px] font-pixel-label text-zinc-500 font-bold">
+                <div className="flex items-center gap-1.5 uppercase tracking-wider">
+                  <span
+                    className={`w-2 h-2 rounded-full transition-all ${
+                      isRunning
+                        ? 'bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]'
+                        : 'bg-zinc-700'
+                    }`}
+                  />
+                  <span className={isRunning ? 'text-emerald-400 font-semibold' : 'text-zinc-500'}>
+                    {isRunning ? 'BACKGROUND CONTINUOUS RUN: ACTIVE' : 'BACKGROUND SYNC: READY'}
+                  </span>
+                </div>
+                <span className="font-mono text-zinc-400">STATUS: {isRunning ? 'LOOP ACTIVE' : 'STANDBY'}</span>
               </div>
 
             </div>

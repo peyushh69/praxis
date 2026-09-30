@@ -29,16 +29,33 @@ setLogLevel('error');
 
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
+// Request Calendar scopes for workspace integration
+googleProvider.addScope('https://www.googleapis.com/auth/calendar.events');
 
-export async function loginWithGoogle(): Promise<User | null> {
+// Cache the access token in memory for Google APIs
+let isSigningIn = false;
+let cachedAccessToken: string | null = null;
+
+export const getAccessToken = () => cachedAccessToken;
+
+export async function loginWithGoogle(): Promise<{ user: User; accessToken: string } | null> {
+  if (isSigningIn) {
+    return null;
+  }
+  
   // Check online connectivity
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     throw new Error('You appear to be offline. Please check your internet connection.');
   }
 
+  isSigningIn = true;
   try {
     const result = await signInWithPopup(auth, googleProvider);
-    return result.user;
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    if (credential?.accessToken) {
+      cachedAccessToken = credential.accessToken;
+    }
+    return { user: result.user, accessToken: cachedAccessToken || '' };
   } catch (error: any) {
     const errorCode = error?.code || '';
     const errorMsg = error?.message || '';
@@ -59,7 +76,11 @@ export async function loginWithGoogle(): Promise<User | null> {
       try {
         await new Promise((res) => setTimeout(res, 800));
         const retryResult = await signInWithPopup(auth, googleProvider);
-        return retryResult.user;
+        const retryCredential = GoogleAuthProvider.credentialFromResult(retryResult);
+        if (retryCredential?.accessToken) {
+          cachedAccessToken = retryCredential.accessToken;
+        }
+        return { user: retryResult.user, accessToken: cachedAccessToken || '' };
       } catch (retryError: any) {
         const retryCode = retryError?.code || '';
         const retryMsg = retryError?.message || '';
@@ -87,12 +108,15 @@ export async function loginWithGoogle(): Promise<User | null> {
 
     console.warn('Google Sign-In issue:', errorMsg || error);
     throw error;
+  } finally {
+    isSigningIn = false;
   }
 }
 
 export async function logoutUser(): Promise<void> {
   try {
     await signOut(auth);
+    cachedAccessToken = null;
   } catch (error: any) {
     console.error('Logout Error:', error);
     throw error;
