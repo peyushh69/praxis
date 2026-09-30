@@ -3,6 +3,10 @@ import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInAnonymously,
+  updateProfile,
   signOut,
   onAuthStateChanged,
   User,
@@ -14,21 +18,73 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 export const auth = getAuth(app);
 
-// Initialize Firestore with auto-detect long-polling to prevent WebSocket timeout in restricted networks/sandboxes
-// Added persistentLocalCache to prevent data loss when offline / network drops
+// Initialize Firestore with long-polling and persistent cache so user data connects reliably
+// across restricted networks, sandboxes, Cloud Run, iframes, and offline states
 export const db = initializeFirestore(
   app,
   {
     localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+    experimentalForceLongPolling: true,
   },
   firebaseConfig.firestoreDatabaseId || undefined
 );
 
-// Suppress non-fatal backend connection transition logs
-setLogLevel('error');
+// Suppress non-fatal connection transition logs
+setLogLevel('silent');
 
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
+
+/**
+ * Translates Firebase Auth error codes into clear, actionable human explanations
+ */
+export function getAuthErrorMessage(error: any): string {
+  const code = error?.code || '';
+  const rawMsg = error?.message || '';
+
+  if (code === 'auth/unauthorized-domain' || rawMsg.includes('unauthorized-domain')) {
+    const host = typeof window !== 'undefined' ? window.location.hostname : 'current domain';
+    return `Domain unauthorized: "${host}" is not in your Firebase Authorized Domains. Add it in Firebase Console -> Authentication -> Settings -> Authorized domains, or use Email / Guest sign-in.`;
+  }
+
+  if (code === 'auth/popup-blocked' || rawMsg.includes('popup-blocked')) {
+    return 'Sign-in popup was blocked by your browser or sandbox iframe. Please open the app in a new tab or use Email login.';
+  }
+
+  if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+    return 'Sign-in was cancelled.';
+  }
+
+  if (code === 'auth/operation-not-allowed' || rawMsg.includes('operation-not-allowed')) {
+    return 'This sign-in method is not enabled in Firebase Console. Enable it under Authentication -> Sign-in method.';
+  }
+
+  if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+    return 'Invalid email or password. Please verify and try again.';
+  }
+
+  if (code === 'auth/email-already-in-use') {
+    return 'An account with this email already exists. Please log in instead.';
+  }
+
+  if (code === 'auth/weak-password') {
+    return 'Password must be at least 6 characters long.';
+  }
+
+  if (code === 'auth/invalid-email') {
+    return 'Please enter a valid email address.';
+  }
+
+  if (code === 'auth/network-request-failed' || rawMsg.includes('network-request-failed')) {
+    return 'Network connection issue during authentication. Please check your internet or retry.';
+  }
+
+  if (code === 'auth/invalid-api-key' || rawMsg.includes('invalid-api-key')) {
+    return 'Invalid Firebase API Key. Please verify your environment variables or Firebase configuration.';
+  }
+
+  return rawMsg || 'Authentication failed. Please check connection and try again.';
+}
 
 export async function loginWithGoogle(): Promise<User | null> {
   // Check online connectivity
@@ -53,40 +109,63 @@ export async function loginWithGoogle(): Promise<User | null> {
       return null;
     }
 
-    // If network request failed, retry once automatically after a brief delay
-    if (errorCode === 'auth/network-request-failed' || errorMsg.includes('network-request-failed')) {
-      console.warn('Google Sign-In network glitch detected. Retrying once...');
+    // Translate to actionable message
+    const friendlyMessage = getAuthErrorMessage(error);
+    const enrichedError = new Error(friendlyMessage);
+    (enrichedError as any).code = errorCode;
+    throw enrichedError;
+  }
+}
+
+export async function loginWithEmail(email: string, pass: string): Promise<User> {
+  if (!email || !pass) {
+    throw new Error('Please enter both email and password.');
+  }
+  try {
+    const cred = await signInWithEmailAndPassword(auth, email.trim(), pass);
+    return cred.user;
+  } catch (error: any) {
+    const friendlyMessage = getAuthErrorMessage(error);
+    const enrichedError = new Error(friendlyMessage);
+    (enrichedError as any).code = error?.code;
+    throw enrichedError;
+  }
+}
+
+export async function registerWithEmail(email: string, pass: string, displayName?: string): Promise<User> {
+  if (!email || !pass) {
+    throw new Error('Please enter both email and password.');
+  }
+  if (pass.length < 6) {
+    throw new Error('Password must be at least 6 characters.');
+  }
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email.trim(), pass);
+    if (displayName && cred.user) {
       try {
-        await new Promise((res) => setTimeout(res, 800));
-        const retryResult = await signInWithPopup(auth, googleProvider);
-        return retryResult.user;
-      } catch (retryError: any) {
-        const retryCode = retryError?.code || '';
-        const retryMsg = retryError?.message || '';
-
-        if (
-          retryCode === 'auth/popup-closed-by-user' ||
-          retryCode === 'auth/cancelled-popup-request' ||
-          retryCode === 'auth/user-cancelled' ||
-          retryMsg.includes('popup-closed-by-user')
-        ) {
-          return null;
-        }
-
-        console.warn('Network request failed on retry for Google Sign-In:', retryError?.message || retryError);
-        throw new Error(
-          'Network connection issue during Google Sign-In. Please check your internet connection, disable ad-blockers, or open the app in a new tab.'
-        );
+        await updateProfile(cred.user, { displayName: displayName.trim() });
+      } catch (pErr) {
+        console.warn('Profile update notice:', pErr);
       }
     }
+    return cred.user;
+  } catch (error: any) {
+    const friendlyMessage = getAuthErrorMessage(error);
+    const enrichedError = new Error(friendlyMessage);
+    (enrichedError as any).code = error?.code;
+    throw enrichedError;
+  }
+}
 
-    if (errorCode === 'auth/popup-blocked' || errorMsg.includes('popup-blocked')) {
-      console.warn('Popup blocked by browser during sign in.');
-      throw new Error('Sign-in popup was blocked by your browser. Please allow popups or open the app in a new tab.');
-    }
-
-    console.warn('Google Sign-In issue:', errorMsg || error);
-    throw error;
+export async function loginAnonymouslyUser(): Promise<User> {
+  try {
+    const cred = await signInAnonymously(auth);
+    return cred.user;
+  } catch (error: any) {
+    const friendlyMessage = getAuthErrorMessage(error);
+    const enrichedError = new Error(friendlyMessage);
+    (enrichedError as any).code = error?.code;
+    throw enrichedError;
   }
 }
 

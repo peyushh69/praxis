@@ -2,6 +2,7 @@ import {
   doc,
   setDoc,
   getDoc,
+  getDocFromServer,
   getDocs,
   collection,
   query,
@@ -216,7 +217,7 @@ export async function saveSessionToFirestore(userId: string, session: PomodoroSe
       userId,
     });
   } catch (error) {
-    console.error('Error saving session to Firestore:', error);
+    console.warn('Notice saving session to Firestore (queued in local cache):', error);
   }
 }
 
@@ -228,7 +229,7 @@ export async function saveTaskToFirestore(userId: string, task: TaskItem) {
       userId,
     });
   } catch (error) {
-    console.error('Error saving task to Firestore:', error);
+    console.warn('Notice saving task to Firestore (queued in local cache):', error);
   }
 }
 
@@ -237,7 +238,7 @@ export async function deleteTaskFromFirestore(userId: string, taskId: string) {
     const taskDocRef = doc(db, 'users', userId, 'tasks', taskId);
     await deleteDoc(taskDocRef);
   } catch (error) {
-    console.error('Error deleting task from Firestore:', error);
+    console.warn('Notice deleting task from Firestore:', error);
   }
 }
 
@@ -266,7 +267,7 @@ export async function deleteHabitFromFirestore(
 
     await batch.commit();
   } catch (error) {
-    console.error('Error deleting habit from Firestore:', error);
+    console.warn('Notice deleting habit from Firestore:', error);
   }
 }
 
@@ -297,7 +298,7 @@ export async function saveHabitsToFirestore(userId: string, habits: HabitItem[])
 
     await batch.commit();
   } catch (error) {
-    console.error('Error saving habits to Firestore:', error);
+    console.warn('Notice saving habits to Firestore:', error);
   }
 }
 
@@ -313,7 +314,7 @@ export async function saveHabitLogsToFirestore(userId: string, habitLogs: HabitP
       { merge: true }
     );
   } catch (error) {
-    console.error('Error saving habit logs to Firestore:', error);
+    console.warn('Notice saving habit logs to Firestore:', error);
   }
 }
 
@@ -329,7 +330,7 @@ export async function saveSettingsToFirestore(userId: string, settings: AppSetti
       { merge: true }
     );
   } catch (error) {
-    console.error('Error saving settings to Firestore:', error);
+    console.warn('Notice saving settings to Firestore:', error);
   }
 }
 
@@ -345,7 +346,7 @@ export async function saveCountdownGoalToFirestore(userId: string, goal: Countdo
       { merge: true }
     );
   } catch (error) {
-    console.error('Error saving countdown goal to Firestore:', error);
+    console.warn('Notice saving countdown goal to Firestore:', error);
   }
 }
 
@@ -361,6 +362,19 @@ export async function resetUserDataInFirestore(userId: string) {
       { merge: true }
     );
   } catch (error) {
-    console.error('Error resetting user data in Firestore:', error);
+    console.warn('Notice resetting user data in Firestore:', error);
+  }
+}
+
+/**
+ * Validates Firestore backend connectivity on startup as per Firestore skill standards
+ */
+export async function validateFirestoreConnection(): Promise<boolean> {
+  try {
+    await getDocFromServer(doc(db, 'system', 'ping'));
+    return true;
+  } catch (error) {
+    // When offline or cold-starting, Firestore switches to resilient local cache automatically
+    return false;
   }
 }

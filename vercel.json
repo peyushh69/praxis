@@ -3,9 +3,10 @@
   "framework": "vite",
   "buildCommand": "vite build",
   "outputDirectory": "dist",
+  "cleanUrls": true,
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/((?!assets/|icon\\.svg|manifest\\.json|robots\\.txt|.*\\..*).*)",
       "destination": "/index.html"
     }
   ]

@@ -62,6 +62,7 @@ import { RadialHabitTracker } from './components/RadialHabitTracker';
 import { SettingsModal } from './components/SettingsModal';
 import { DayDetailsModal } from './components/DayDetailsModal';
 import { InstallApkModal } from './components/InstallApkModal';
+import { AuthModal } from './components/AuthModal';
 
 export const App: React.FC = () => {
   // Authentication state
@@ -69,6 +70,7 @@ export const App: React.FC = () => {
   const [authLoading, setAuthLoading] = useState<boolean>(true);
   const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
 
   // Persistence state - initialized with offline/guest local storage fallback
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
@@ -896,34 +898,15 @@ export const App: React.FC = () => {
                 </button>
               </div>
             ) : (
-              /* Login With Google Button (Retro Neon Orange Aesthetic - Responsive) */
+              /* Cloud Login Button - Opens AuthModal with Google, Email & Vercel Guide */
               <button
                 type="button"
-                onClick={(e) => handleGoogleLogin(e)}
-                disabled={isLoggingIn}
+                onClick={() => setIsAuthModalOpen(true)}
                 className="bg-[#181a24] hover:bg-[#ff3b00] hover:text-black text-[#ff3b00] border border-[#ff3b00] px-2 sm:px-3 py-1 sm:py-1.5 text-[7.5px] sm:text-[8px] flex items-center gap-1.5 sm:gap-2 cursor-pointer shadow-[0_0_8px_rgba(255,59,0,0.2)] hover:shadow-[0_0_14px_rgba(255,59,0,0.6)] transition-all font-pixel-heading uppercase tracking-wider group shrink-0"
-                title="Login with Google to sync sessions & habits across devices"
+                title="Login with Google or Email to sync sessions & habits across devices"
               >
-                {/* SVG Google 'G' Icon */}
-                <svg className="w-3 h-3 transition-transform group-hover:scale-110 shrink-0" viewBox="0 0 24 24">
-                  <path
-                    fill="currentColor"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="currentColor"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="currentColor"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                  />
-                  <path
-                    fill="currentColor"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                  />
-                </svg>
-                <span>{isLoggingIn ? '...' : 'LOGIN'}<span className="hidden sm:inline"> WITH GOOGLE</span></span>
+                <LogIn size={11} className="transition-transform group-hover:scale-110 shrink-0" />
+                <span>LOGIN / CLOUD SYNC</span>
               </button>
             )}
 
@@ -956,16 +939,15 @@ export const App: React.FC = () => {
         <div className="bg-red-950/90 border-b border-red-800/80 text-red-200 px-4 py-2 text-center text-[8px] font-pixel-label flex flex-wrap items-center justify-center gap-2">
           <div className="flex items-center gap-1.5">
             <AlertCircle size={12} className="text-red-400 shrink-0" />
-            <span>{loginError}</span>
+            <span className="max-w-xl text-left sm:text-center">{loginError}</span>
           </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={(e) => handleGoogleLogin(e)}
-              disabled={isLoggingIn}
+              onClick={() => setIsAuthModalOpen(true)}
               className="bg-[#ff3b00] hover:bg-[#ff5722] text-black font-bold px-2 py-0.5 text-[7.5px] cursor-pointer transition-colors"
             >
-              {isLoggingIn ? 'RETRYING...' : 'RETRY SIGN-IN'}
+              FIX / AUTH OPTIONS
             </button>
             {typeof window !== 'undefined' && window.self !== window.top && (
               <button
@@ -991,10 +973,10 @@ export const App: React.FC = () => {
       {!authLoading && !currentUser && (
         <div className="bg-[#10121a] border-b border-[#212433] px-4 py-1.5 text-center text-[7.5px] font-pixel-label text-zinc-400 flex items-center justify-center gap-2">
           <span className="text-[#ff3b00] font-bold">[!] GUEST MODE:</span>
-          <span>Sign in with Google to persist your timer history, tasks, and streaks directly to Firestore.</span>
+          <span>Sign in with Google or Email to persist your timer history, tasks, and streaks directly to Firestore.</span>
           <button
             type="button"
-            onClick={(e) => handleGoogleLogin(e)}
+            onClick={() => setIsAuthModalOpen(true)}
             className="text-white hover:text-[#ff3b00] underline font-bold cursor-pointer ml-1"
           >
             Sign in now →
@@ -1131,6 +1113,13 @@ export const App: React.FC = () => {
       <InstallApkModal
         isOpen={isInstallModalOpen}
         onClose={() => setIsInstallModalOpen(false)}
+      />
+
+      {/* Authentication & Cloud Sync Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        initialError={loginError}
       />
 
     </div>
