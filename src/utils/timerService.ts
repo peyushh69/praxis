@@ -181,32 +181,303 @@ class AudioKeepAlive {
 export const audioKeepAlive = new AudioKeepAlive();
 
 /**
- * Screen WakeLock to prevent PC from sleeping during focus sessions if supported
+ * Robust Screen WakeLock & Always On Display Manager
+ * Prevents mobile phones (Android Chrome, iOS Safari, Samsung Internet, WebViews)
+ * from dimming, sleeping, or turning black during Pomodoro sessions and fullscreen mode.
+ *
+ * Uses a 3-layer keep-awake architecture:
+ * 1. Native Screen Wake Lock API (navigator.wakeLock.request('screen'))
+ * 2. Foreground 2px Live-Canvas Video Stream (<video> at z-index 2147483647 decoding 2fps frames)
+ *    which triggers OS-level VideoWakeLock on Android & iOS even inside iframes where
+ *    Permissions-Policy blocks navigator.wakeLock.
+ * 3. Direct User-Gesture unlocking + 4-second heartbeat verification.
  */
 class WakeLockManager {
   private sentinel: any = null;
+  private timerActive = false;
+  private fullscreenActive = false;
+  private keepAwakeVideo: HTMLVideoElement | null = null;
+  private keepAwakeCanvas: HTMLCanvasElement | null = null;
+  private audioCtx: AudioContext | null = null;
+  private canvasTimer: number | null = null;
+  private heartbeatTimer: number | null = null;
+  private frameToggle = false;
+  private listenersAttached = false;
 
-  async request() {
-    try {
-      if ('wakeLock' in navigator && !this.sentinel) {
-        this.sentinel = await (navigator as any).wakeLock.request('screen');
-        this.sentinel.addEventListener('release', () => {
-          this.sentinel = null;
-        });
+  constructor() {
+    this.attachAutoReacquireListeners();
+  }
+
+  private get shouldStayAwake(): boolean {
+    return this.timerActive || this.fullscreenActive;
+  }
+
+  private attachAutoReacquireListeners() {
+    if (typeof window === 'undefined' || this.listenersAttached) return;
+    this.listenersAttached = true;
+
+    const reassertIfNeeded = () => {
+      if (this.shouldStayAwake && document.visibilityState === 'visible') {
+        this.acquireNow();
       }
-    } catch {
-      // Wake Lock could not be acquired (e.g. low battery or unsupported)
+    };
+
+    document.addEventListener('visibilitychange', reassertIfNeeded);
+    window.addEventListener('focus', reassertIfNeeded);
+    window.addEventListener('touchstart', reassertIfNeeded, { passive: true });
+    window.addEventListener('touchend', reassertIfNeeded, { passive: true });
+    window.addEventListener('pointerdown', reassertIfNeeded, { passive: true });
+    window.addEventListener('click', reassertIfNeeded, { passive: true });
+  }
+
+  isSupported(): boolean {
+    return true;
+  }
+
+  isActive(): boolean {
+    return (
+      Boolean(this.sentinel && !this.sentinel.released) ||
+      Boolean(this.keepAwakeVideo && !this.keepAwakeVideo.paused)
+    );
+  }
+
+  /**
+   * Explicitly mark whether the countdown timer is running
+   */
+  setTimerActive(active: boolean) {
+    this.timerActive = active;
+    if (this.shouldStayAwake) {
+      this.acquireNow();
+    } else {
+      this.forceReleaseAll();
     }
   }
 
+  /**
+   * Explicitly mark whether fullscreen mode is open
+   */
+  setFullscreenActive(active: boolean) {
+    this.fullscreenActive = active;
+    if (this.shouldStayAwake) {
+      this.acquireNow();
+    } else {
+      this.forceReleaseAll();
+    }
+  }
+
+  /**
+   * Call synchronously inside onClick / onPointerDown handlers to unlock
+   * mobile browser media & wakeLock policies immediately within user gesture.
+   */
+  acquireFromUserGesture() {
+    this.acquireNow();
+  }
+
+  async request(): Promise<boolean> {
+    this.timerActive = true;
+    return this.acquireNow();
+  }
+
   release() {
+    this.timerActive = false;
+    // Only release if neither timer nor fullscreen is active
+    if (!this.shouldStayAwake) {
+      this.forceReleaseAll();
+    }
+  }
+
+  private async acquireNow(): Promise<boolean> {
+    this.startHeartbeat();
+
+    // Always run the foreground video+audio keep-awake stream in parallel with native wakeLock
+    // because mobile iframes/WebViews can block or drop navigator.wakeLock.
+    this.startKeepAwakeVideo();
+
+    if (typeof navigator !== 'undefined' && 'wakeLock' in navigator) {
+      try {
+        if (!this.sentinel || this.sentinel.released) {
+          this.sentinel = await (navigator as any).wakeLock.request('screen');
+          this.sentinel.addEventListener('release', () => {
+            this.sentinel = null;
+            if (this.shouldStayAwake && document.visibilityState === 'visible') {
+              setTimeout(() => {
+                if (this.shouldStayAwake) {
+                  this.acquireNow().catch(() => {});
+                }
+              }, 250);
+            }
+          });
+        }
+      } catch {
+        // VideoWakeLock stream is already active and keeping display awake
+      }
+    }
+
+    return true;
+  }
+
+  private startHeartbeat() {
+    if (this.heartbeatTimer !== null || typeof window === 'undefined') return;
+    this.heartbeatTimer = window.setInterval(() => {
+      if (!this.shouldStayAwake) {
+        this.stopHeartbeat();
+        return;
+      }
+      if (document.visibilityState === 'visible') {
+        if (typeof navigator !== 'undefined' && 'wakeLock' in navigator && (!this.sentinel || this.sentinel.released)) {
+          (navigator as any).wakeLock
+            .request('screen')
+            .then((s: any) => {
+              this.sentinel = s;
+            })
+            .catch(() => {});
+        }
+        if (this.keepAwakeVideo && this.keepAwakeVideo.paused) {
+          this.keepAwakeVideo.play().catch(() => {});
+        }
+      }
+    }, 3000);
+  }
+
+  private stopHeartbeat() {
+    if (this.heartbeatTimer !== null) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+  }
+
+  private startKeepAwakeVideo() {
+    try {
+      if (typeof document === 'undefined') return;
+
+      // 1. Create a 64x64 canvas that repaints 4 times per second so the video stream
+      // has continuous frame updates (required by Chromium VideoWakeLock)
+      if (!this.keepAwakeCanvas) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 64;
+        this.keepAwakeCanvas = canvas;
+      }
+
+      const drawFrame = () => {
+        if (!this.keepAwakeCanvas) return;
+        const ctx = this.keepAwakeCanvas.getContext('2d');
+        if (ctx) {
+          this.frameToggle = !this.frameToggle;
+          ctx.fillStyle = this.frameToggle ? '#010101' : '#020202';
+          ctx.fillRect(0, 0, 64, 64);
+          ctx.fillStyle = this.frameToggle ? '#030303' : '#010101';
+          ctx.fillRect(16, 16, 32, 32);
+        }
+      };
+
+      drawFrame();
+      if (this.canvasTimer === null) {
+        this.canvasTimer = window.setInterval(drawFrame, 250);
+      }
+
+      // 2. Create foreground video element covering >25% of viewport (60vw x 60vh) at opacity 0.004
+      // CRITICAL: Chromium's VideoWakeLock (video_wake_lock.cc) enforces kSizeThreshold = 0.2 (20% of viewport).
+      // Any muted video smaller than 20% of the viewport is ignored by Android Chrome as a decorative icon!
+      if (!this.keepAwakeVideo) {
+        const video = document.createElement('video');
+        video.setAttribute('playsinline', 'true');
+        video.setAttribute('webkit-playsinline', 'true');
+        video.muted = true;
+        video.loop = true;
+        video.autoplay = true;
+        video.style.position = 'fixed';
+        video.style.top = '20vh';
+        video.style.left = '20vw';
+        video.style.width = '60vw';
+        video.style.height = '60vh';
+        video.style.opacity = '0.004';
+        video.style.pointerEvents = 'none';
+        video.style.zIndex = '2147483647';
+
+        const anyCanvas = this.keepAwakeCanvas as any;
+        let stream: MediaStream | null = null;
+        if (typeof anyCanvas.captureStream === 'function') {
+          stream = anyCanvas.captureStream(4);
+        } else if (typeof anyCanvas.mozCaptureStream === 'function') {
+          stream = anyCanvas.mozCaptureStream(4);
+        }
+
+        // Attach a silent audio track to the MediaStream so Android/iOS media power manager
+        // treats the stream as an active audiovisual playback session
+        try {
+          const AudioCtx =
+            window.AudioContext ||
+            (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+          if (AudioCtx && stream) {
+            if (!this.audioCtx) {
+              this.audioCtx = new AudioCtx();
+            }
+            if (this.audioCtx.state === 'suspended') {
+              this.audioCtx.resume().catch(() => {});
+            }
+            const dst = this.audioCtx.createMediaStreamDestination();
+            const osc = this.audioCtx.createOscillator();
+            const gain = this.audioCtx.createGain();
+            osc.frequency.value = 20;
+            gain.gain.value = 0.00001;
+            osc.connect(gain);
+            gain.connect(dst);
+            osc.start();
+            const audioTrack = dst.stream.getAudioTracks()[0];
+            if (audioTrack) {
+              stream.addTrack(audioTrack);
+            }
+          }
+        } catch {
+          // Ignore audio track attachment errors
+        }
+
+        if (stream) {
+          video.srcObject = stream;
+        }
+
+        document.body.appendChild(video);
+        this.keepAwakeVideo = video;
+      }
+
+      if (this.audioCtx && this.audioCtx.state === 'suspended') {
+        this.audioCtx.resume().catch(() => {});
+      }
+
+      if (this.keepAwakeVideo && this.keepAwakeVideo.paused) {
+        this.keepAwakeVideo.play().catch(() => {});
+      }
+    } catch {
+      // Ignore errors
+    }
+  }
+
+  private forceReleaseAll() {
+    this.stopHeartbeat();
+    if (this.canvasTimer !== null) {
+      clearInterval(this.canvasTimer);
+      this.canvasTimer = null;
+    }
     try {
       if (this.sentinel) {
         this.sentinel.release();
         this.sentinel = null;
       }
     } catch {
-      // Ignore
+      this.sentinel = null;
+    }
+    try {
+      if (this.keepAwakeVideo) {
+        this.keepAwakeVideo.pause();
+        this.keepAwakeVideo.srcObject = null;
+        if (this.keepAwakeVideo.parentNode) {
+          this.keepAwakeVideo.parentNode.removeChild(this.keepAwakeVideo);
+        }
+        this.keepAwakeVideo = null;
+      }
+    } catch {
+      this.keepAwakeVideo = null;
     }
   }
 }

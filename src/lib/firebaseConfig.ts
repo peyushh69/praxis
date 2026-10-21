@@ -31,14 +31,16 @@ const DEFAULT_CONFIG = {
   oAuthClientId: '778903558380-naa8j13h8i25rjo5ldjljdqvu4cusql2.apps.googleusercontent.com',
 };
 
+const metaEnv = ((import.meta as unknown as { env?: Record<string, string | undefined> })?.env) || {};
+
 export const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || DEFAULT_CONFIG.apiKey,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || DEFAULT_CONFIG.authDomain,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || DEFAULT_CONFIG.projectId,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || DEFAULT_CONFIG.storageBucket,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || DEFAULT_CONFIG.messagingSenderId,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || DEFAULT_CONFIG.appId,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || DEFAULT_CONFIG.measurementId,
-  firestoreDatabaseId: import.meta.env.VITE_FIREBASE_DATABASE_ID || DEFAULT_CONFIG.firestoreDatabaseId,
-  oAuthClientId: import.meta.env.VITE_FIREBASE_OAUTH_CLIENT_ID || DEFAULT_CONFIG.oAuthClientId,
+  apiKey: metaEnv.VITE_FIREBASE_API_KEY || DEFAULT_CONFIG.apiKey,
+  authDomain: metaEnv.VITE_FIREBASE_AUTH_DOMAIN || DEFAULT_CONFIG.authDomain,
+  projectId: metaEnv.VITE_FIREBASE_PROJECT_ID || DEFAULT_CONFIG.projectId,
+  storageBucket: metaEnv.VITE_FIREBASE_STORAGE_BUCKET || DEFAULT_CONFIG.storageBucket,
+  messagingSenderId: metaEnv.VITE_FIREBASE_MESSAGING_SENDER_ID || DEFAULT_CONFIG.messagingSenderId,
+  appId: metaEnv.VITE_FIREBASE_APP_ID || DEFAULT_CONFIG.appId,
+  measurementId: metaEnv.VITE_FIREBASE_MEASUREMENT_ID || DEFAULT_CONFIG.measurementId,
+  firestoreDatabaseId: metaEnv.VITE_FIREBASE_DATABASE_ID || DEFAULT_CONFIG.firestoreDatabaseId,
+  oAuthClientId: metaEnv.VITE_FIREBASE_OAUTH_CLIENT_ID || DEFAULT_CONFIG.oAuthClientId,
 };
