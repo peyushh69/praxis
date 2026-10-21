@@ -19,7 +19,37 @@ const ACTIVE_TIMER_KEY = 'praxis_active_timer_v1';
  */
 export function saveActiveTimer(data: ActiveTimerData): void {
   try {
-    localStorage.setItem(ACTIVE_TIMER_KEY, JSON.stringify(data));
+    const safeTotal =
+      typeof data.totalTime === 'number' && Number.isFinite(data.totalTime) && data.totalTime > 0
+        ? Math.round(data.totalTime)
+        : 25 * 60;
+    const safeLeft =
+      typeof data.timeLeft === 'number' && Number.isFinite(data.timeLeft) && data.timeLeft >= 0
+        ? Math.round(data.timeLeft)
+        : safeTotal;
+    const safeTargetEnd =
+      typeof data.targetEndTime === 'number' && Number.isFinite(data.targetEndTime) && data.targetEndTime > 0
+        ? data.targetEndTime
+        : null;
+
+    const sanitized: ActiveTimerData = {
+      ...data,
+      mode: data.mode === 'shortBreak' || data.mode === 'longBreak' ? data.mode : 'focus',
+      targetEndTime: safeTargetEnd,
+      timeLeft: safeLeft,
+      totalTime: safeTotal,
+      isRunning: Boolean(data.isRunning && safeTargetEnd !== null),
+      startedAt:
+        typeof data.startedAt === 'number' && Number.isFinite(data.startedAt)
+          ? data.startedAt
+          : Date.now(),
+      completedCycles:
+        typeof data.completedCycles === 'number' && Number.isFinite(data.completedCycles)
+          ? Math.max(0, Math.floor(data.completedCycles))
+          : 0,
+      lastUpdated: Date.now(),
+    };
+    localStorage.setItem(ACTIVE_TIMER_KEY, JSON.stringify(sanitized));
   } catch (e) {
     console.error('Failed to save active timer to localStorage', e);
   }
@@ -32,16 +62,62 @@ export function loadActiveTimer(): ActiveTimerData | null {
   try {
     const raw = localStorage.getItem(ACTIVE_TIMER_KEY);
     if (!raw) return null;
-    const data: ActiveTimerData = JSON.parse(raw);
+    const data = JSON.parse(raw) as Partial<ActiveTimerData> | null;
+    if (!data || typeof data !== 'object') return null;
 
-    if (data.isRunning && data.targetEndTime) {
+    const mode: TimerMode =
+      data.mode === 'shortBreak' || data.mode === 'longBreak' ? data.mode : 'focus';
+    const fallbackSecs = mode === 'shortBreak' ? 5 * 60 : mode === 'longBreak' ? 15 * 60 : 25 * 60;
+
+    const totalTime =
+      typeof data.totalTime === 'number' && Number.isFinite(data.totalTime) && data.totalTime > 0
+        ? Math.round(data.totalTime)
+        : fallbackSecs;
+
+    const targetEndTime =
+      typeof data.targetEndTime === 'number' && Number.isFinite(data.targetEndTime) && data.targetEndTime > 0
+        ? data.targetEndTime
+        : null;
+
+    let timeLeft =
+      typeof data.timeLeft === 'number' && Number.isFinite(data.timeLeft) && data.timeLeft >= 0
+        ? Math.round(data.timeLeft)
+        : totalTime;
+
+    let isRunning = Boolean(data.isRunning && targetEndTime !== null);
+
+    if (isRunning && targetEndTime !== null) {
       const now = Date.now();
-      const remainingMs = data.targetEndTime - now;
+      const remainingMs = targetEndTime - now;
       const remainingSecs = Math.round(remainingMs / 1000);
-      data.timeLeft = remainingSecs;
+      if (Number.isFinite(remainingSecs)) {
+        timeLeft = remainingSecs;
+      } else {
+        isRunning = false;
+        timeLeft = totalTime;
+      }
     }
 
-    return data;
+    return {
+      mode,
+      targetEndTime: isRunning ? targetEndTime : null,
+      timeLeft,
+      totalTime,
+      isRunning,
+      startedAt:
+        typeof data.startedAt === 'number' && Number.isFinite(data.startedAt)
+          ? data.startedAt
+          : Date.now(),
+      completedCycles:
+        typeof data.completedCycles === 'number' && Number.isFinite(data.completedCycles)
+          ? Math.max(0, Math.floor(data.completedCycles))
+          : 0,
+      activeTaskId: typeof data.activeTaskId === 'string' ? data.activeTaskId : null,
+      lastUpdated:
+        typeof data.lastUpdated === 'number' && Number.isFinite(data.lastUpdated)
+          ? data.lastUpdated
+          : Date.now(),
+    };
   } catch (e) {
     console.error('Failed to load active timer from localStorage', e);
     return null;

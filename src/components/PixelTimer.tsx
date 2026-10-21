@@ -53,21 +53,31 @@ export const PixelTimer: React.FC<PixelTimerProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [aodActive, setAodActive] = useState(false);
 
-  const hours = Math.floor(timeLeft / 3600);
-  const minutes = Math.floor((timeLeft % 3600) / 60);
-  const seconds = timeLeft % 60;
+  const currentDurationMins =
+    mode === 'focus'
+      ? settings.focusDuration || 25
+      : mode === 'shortBreak'
+      ? settings.shortBreakDuration || 5
+      : settings.longBreakDuration || 15;
 
-  const showHours = totalTime >= 3600 || timeLeft >= 3600;
+  const fallbackSeconds = Math.max(60, currentDurationMins * 60);
+  const safeTotalTime =
+    typeof totalTime === 'number' && Number.isFinite(totalTime) && totalTime > 0
+      ? totalTime
+      : fallbackSeconds;
+  const safeTimeLeft =
+    typeof timeLeft === 'number' && Number.isFinite(timeLeft) && timeLeft >= 0
+      ? timeLeft
+      : safeTotalTime;
+
+  const hours = Math.floor(safeTimeLeft / 3600);
+  const minutes = Math.floor((safeTimeLeft % 3600) / 60);
+  const seconds = Math.floor(safeTimeLeft % 60);
+
+  const showHours = safeTotalTime >= 3600 || safeTimeLeft >= 3600;
   const formattedHours = String(hours).padStart(2, '0');
   const formattedMinutes = String(minutes).padStart(2, '0');
   const formattedSeconds = String(seconds).padStart(2, '0');
-
-  const currentDurationMins =
-    mode === 'focus'
-      ? settings.focusDuration
-      : mode === 'shortBreak'
-      ? settings.shortBreakDuration
-      : settings.longBreakDuration;
 
   const targetHrs = Math.floor(currentDurationMins / 60);
   const targetRemMins = currentDurationMins % 60;
@@ -78,7 +88,10 @@ export const PixelTimer: React.FC<PixelTimerProps> = ({
         : `${targetHrs} HR`
       : `${currentDurationMins} MIN`;
 
-  const progressPercent = Math.min(100, Math.max(0, ((totalTime - timeLeft) / totalTime) * 100));
+  const rawProgress = ((safeTotalTime - safeTimeLeft) / safeTotalTime) * 100;
+  const progressPercent = Number.isFinite(rawProgress)
+    ? Math.min(100, Math.max(0, rawProgress))
+    : 0;
 
   // Toggle Fullscreen & Always On Display
   const toggleFullscreen = async () => {

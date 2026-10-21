@@ -89,25 +89,29 @@ export const App: React.FC = () => {
   const [timeLeft, setTimeLeft] = useState<number>(() => {
     const saved = loadActiveTimer();
     if (saved) {
-      if (saved.isRunning && saved.targetEndTime) {
+      if (saved.isRunning && typeof saved.targetEndTime === 'number' && Number.isFinite(saved.targetEndTime)) {
         const remaining = Math.round((saved.targetEndTime - Date.now()) / 1000);
-        return remaining > 0 ? remaining : 0;
+        return Number.isFinite(remaining) && remaining > 0 ? remaining : 0;
       }
-      return typeof saved.timeLeft === 'number' ? saved.timeLeft : DEFAULT_SETTINGS.focusDuration * 60;
+      if (typeof saved.timeLeft === 'number' && Number.isFinite(saved.timeLeft) && saved.timeLeft >= 0) {
+        return saved.timeLeft;
+      }
     }
     return DEFAULT_SETTINGS.focusDuration * 60;
   });
 
   const [totalTime, setTotalTime] = useState<number>(() => {
     const saved = loadActiveTimer();
-    return saved && saved.totalTime ? saved.totalTime : DEFAULT_SETTINGS.focusDuration * 60;
+    return saved && typeof saved.totalTime === 'number' && Number.isFinite(saved.totalTime) && saved.totalTime > 0
+      ? saved.totalTime
+      : DEFAULT_SETTINGS.focusDuration * 60;
   });
 
   const [isRunning, setIsRunning] = useState<boolean>(() => {
     const saved = loadActiveTimer();
-    if (saved && saved.isRunning && saved.targetEndTime) {
+    if (saved && saved.isRunning && typeof saved.targetEndTime === 'number' && Number.isFinite(saved.targetEndTime)) {
       const remaining = Math.round((saved.targetEndTime - Date.now()) / 1000);
-      return remaining > 0;
+      return Number.isFinite(remaining) && remaining > 0;
     }
     return false;
   });
@@ -255,15 +259,36 @@ export const App: React.FC = () => {
   // ---------------------------------------------------------------------------
   // Robust Background Timer Engine & Tab-Reload Resilient Synchronization
   // ---------------------------------------------------------------------------
-  const expectedEndTimeRef = useRef<number | null>(() => {
-    const saved = loadActiveTimer();
-    if (saved && saved.isRunning && saved.targetEndTime) {
-      const remaining = Math.round((saved.targetEndTime - Date.now()) / 1000);
-      return remaining > 0 ? saved.targetEndTime : null;
-    }
-    return null;
-  });
+  const initialSavedTimer = loadActiveTimer();
+  const initialExpectedEndTime =
+    initialSavedTimer &&
+    initialSavedTimer.isRunning &&
+    typeof initialSavedTimer.targetEndTime === 'number' &&
+    Number.isFinite(initialSavedTimer.targetEndTime) &&
+    Math.round((initialSavedTimer.targetEndTime - Date.now()) / 1000) > 0
+      ? initialSavedTimer.targetEndTime
+      : null;
+
+  const expectedEndTimeRef = useRef<number | null>(initialExpectedEndTime);
   const latestCompleteHandler = useRef<() => void>(() => {});
+
+  // Self-healing guard: if timeLeft or totalTime ever becomes NaN or invalid, repair immediately
+  useEffect(() => {
+    const defaultDurationMins =
+      mode === 'shortBreak'
+        ? settings.shortBreakDuration || DEFAULT_SETTINGS.shortBreakDuration
+        : mode === 'longBreak'
+        ? settings.longBreakDuration || DEFAULT_SETTINGS.longBreakDuration
+        : settings.focusDuration || DEFAULT_SETTINGS.focusDuration;
+    const fallbackSeconds = Math.max(60, defaultDurationMins * 60);
+
+    if (typeof totalTime !== 'number' || !Number.isFinite(totalTime) || totalTime <= 0) {
+      setTotalTime(fallbackSeconds);
+    }
+    if (typeof timeLeft !== 'number' || !Number.isFinite(timeLeft) || timeLeft < 0) {
+      setTimeLeft(fallbackSeconds);
+    }
+  }, [timeLeft, totalTime, mode, settings]);
 
   // Update total duration when mode or settings change and timer is stopped
   const switchMode = (newMode: TimerMode, autoStart = false) => {
@@ -274,11 +299,11 @@ export const App: React.FC = () => {
     wakeLockManager.release();
 
     setMode(newMode);
-    let durationMins = settings.focusDuration;
-    if (newMode === 'shortBreak') durationMins = settings.shortBreakDuration;
-    if (newMode === 'longBreak') durationMins = settings.longBreakDuration;
+    let durationMins = settings.focusDuration || DEFAULT_SETTINGS.focusDuration;
+    if (newMode === 'shortBreak') durationMins = settings.shortBreakDuration || DEFAULT_SETTINGS.shortBreakDuration;
+    if (newMode === 'longBreak') durationMins = settings.longBreakDuration || DEFAULT_SETTINGS.longBreakDuration;
 
-    const seconds = durationMins * 60;
+    const seconds = Math.max(60, durationMins * 60);
     setTimeLeft(seconds);
     setTotalTime(seconds);
 
@@ -317,11 +342,21 @@ export const App: React.FC = () => {
   // Timer Tick Engine with Worker + Visibility Sync
   useEffect(() => {
     const checkTimer = () => {
-      if (!expectedEndTimeRef.current || !isRunning) return;
+      if (
+        typeof expectedEndTimeRef.current !== 'number' ||
+        !Number.isFinite(expectedEndTimeRef.current) ||
+        !isRunning
+      ) {
+        return;
+      }
 
       const now = Date.now();
       const remainingMs = expectedEndTimeRef.current - now;
       const remainingSecs = Math.round(remainingMs / 1000);
+
+      if (!Number.isFinite(remainingSecs)) {
+        return;
+      }
 
       if (remainingSecs <= 0) {
         expectedEndTimeRef.current = null;
@@ -348,8 +383,16 @@ export const App: React.FC = () => {
     };
 
     if (isRunning) {
-      if (!expectedEndTimeRef.current) {
-        expectedEndTimeRef.current = Date.now() + timeLeft * 1000;
+      const safeLeft =
+        typeof timeLeft === 'number' && Number.isFinite(timeLeft) && timeLeft > 0
+          ? timeLeft
+          : (settings.focusDuration || DEFAULT_SETTINGS.focusDuration) * 60;
+
+      if (
+        typeof expectedEndTimeRef.current !== 'number' ||
+        !Number.isFinite(expectedEndTimeRef.current)
+      ) {
+        expectedEndTimeRef.current = Date.now() + safeLeft * 1000;
       }
 
       // 1. Start dedicated Web Worker (immune to browser window interval throttling)
@@ -365,7 +408,7 @@ export const App: React.FC = () => {
       saveActiveTimer({
         mode,
         targetEndTime: expectedEndTimeRef.current,
-        timeLeft,
+        timeLeft: safeLeft,
         totalTime,
         isRunning: true,
         startedAt: expectedEndTimeRef.current - totalTime * 1000,
@@ -404,7 +447,7 @@ export const App: React.FC = () => {
   // Initial recovery check on mount (recovers session if tab was discarded/reloaded after timer completed)
   useEffect(() => {
     const saved = loadActiveTimer();
-    if (saved && saved.isRunning && saved.targetEndTime) {
+    if (saved && saved.isRunning && typeof saved.targetEndTime === 'number' && Number.isFinite(saved.targetEndTime)) {
       const remainingSecs = Math.round((saved.targetEndTime - Date.now()) / 1000);
       if (remainingSecs <= 0) {
         // The timer expired while the tab was asleep, backgrounded, or during reload
@@ -432,9 +475,9 @@ export const App: React.FC = () => {
         setCompletedCycles(saved.completedCycles || 0);
         setActiveTaskId(saved.activeTaskId);
 
-        if (saved.isRunning && saved.targetEndTime) {
+        if (saved.isRunning && typeof saved.targetEndTime === 'number' && Number.isFinite(saved.targetEndTime)) {
           const remaining = Math.round((saved.targetEndTime - Date.now()) / 1000);
-          if (remaining > 0) {
+          if (Number.isFinite(remaining) && remaining > 0) {
             setTimeLeft(remaining);
             expectedEndTimeRef.current = saved.targetEndTime;
             setIsRunning(true);
@@ -457,7 +500,7 @@ export const App: React.FC = () => {
   // Flush state on beforeunload so reload has exact timestamp
   useEffect(() => {
     const handleBeforeUnload = () => {
-      if (isRunning && expectedEndTimeRef.current) {
+      if (isRunning && typeof expectedEndTimeRef.current === 'number' && Number.isFinite(expectedEndTimeRef.current)) {
         saveActiveTimer({
           mode,
           targetEndTime: expectedEndTimeRef.current,
@@ -478,13 +521,14 @@ export const App: React.FC = () => {
 
   // Document Title update with status indicator
   useEffect(() => {
-    const hrs = Math.floor(timeLeft / 3600);
-    const mins = Math.floor((timeLeft % 3600) / 60);
-    const secs = timeLeft % 60;
+    const safeSec = typeof timeLeft === 'number' && Number.isFinite(timeLeft) && timeLeft >= 0 ? timeLeft : 0;
+    const hrs = Math.floor(safeSec / 3600);
+    const mins = Math.floor((safeSec % 3600) / 60);
+    const secs = safeSec % 60;
     const timeStr =
       hrs > 0
         ? `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
-        : `${String(Math.floor(timeLeft / 60)).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        : `${String(Math.floor(safeSec / 60)).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     const modeLabel = mode === 'focus' ? 'Focus 🍅' : 'Break ☕';
     const playStatus = isRunning ? '▶' : '⏸';
     document.title = `${playStatus} ${timeStr} (${modeLabel}) - Praxis`;
@@ -578,13 +622,33 @@ export const App: React.FC = () => {
     // Request desktop notification permission on user action
     requestNotificationPermission();
 
-    const endTime = Date.now() + timeLeft * 1000;
+    const defaultMins =
+      mode === 'shortBreak'
+        ? settings.shortBreakDuration || DEFAULT_SETTINGS.shortBreakDuration
+        : mode === 'longBreak'
+        ? settings.longBreakDuration || DEFAULT_SETTINGS.longBreakDuration
+        : settings.focusDuration || DEFAULT_SETTINGS.focusDuration;
+    const fallbackSecs = Math.max(60, defaultMins * 60);
+
+    const safeLeft =
+      typeof timeLeft === 'number' && Number.isFinite(timeLeft) && timeLeft > 0
+        ? timeLeft
+        : fallbackSecs;
+    const safeTotal =
+      typeof totalTime === 'number' && Number.isFinite(totalTime) && totalTime > 0
+        ? totalTime
+        : fallbackSecs;
+
+    if (safeLeft !== timeLeft) setTimeLeft(safeLeft);
+    if (safeTotal !== totalTime) setTotalTime(safeTotal);
+
+    const endTime = Date.now() + safeLeft * 1000;
     expectedEndTimeRef.current = endTime;
     saveActiveTimer({
       mode,
       targetEndTime: endTime,
-      timeLeft,
-      totalTime,
+      timeLeft: safeLeft,
+      totalTime: safeTotal,
       isRunning: true,
       startedAt: Date.now(),
       completedCycles,
@@ -623,10 +687,10 @@ export const App: React.FC = () => {
     audioKeepAlive.stop();
     wakeLockManager.release();
 
-    let durationMins = settings.focusDuration;
-    if (mode === 'shortBreak') durationMins = settings.shortBreakDuration;
-    if (mode === 'longBreak') durationMins = settings.longBreakDuration;
-    const seconds = durationMins * 60;
+    let durationMins = settings.focusDuration || DEFAULT_SETTINGS.focusDuration;
+    if (mode === 'shortBreak') durationMins = settings.shortBreakDuration || DEFAULT_SETTINGS.shortBreakDuration;
+    if (mode === 'longBreak') durationMins = settings.longBreakDuration || DEFAULT_SETTINGS.longBreakDuration;
+    const seconds = Math.max(60, durationMins * 60);
     setTimeLeft(seconds);
     setTotalTime(seconds);
 
@@ -651,12 +715,14 @@ export const App: React.FC = () => {
 
   const handleAddFiveMinutes = () => {
     if (settings.soundEnabled) cleanAudio.playClick(settings.soundVolume);
-    const newLeft = timeLeft + 300;
-    const newTotal = totalTime + 300;
+    const safeLeft = typeof timeLeft === 'number' && Number.isFinite(timeLeft) && timeLeft >= 0 ? timeLeft : 25 * 60;
+    const safeTotal = typeof totalTime === 'number' && Number.isFinite(totalTime) && totalTime > 0 ? totalTime : 25 * 60;
+    const newLeft = safeLeft + 300;
+    const newTotal = safeTotal + 300;
     setTimeLeft(newLeft);
     setTotalTime(newTotal);
 
-    if (isRunning && expectedEndTimeRef.current) {
+    if (isRunning && typeof expectedEndTimeRef.current === 'number' && Number.isFinite(expectedEndTimeRef.current)) {
       expectedEndTimeRef.current += 300 * 1000;
       saveActiveTimer({
         mode,
@@ -681,14 +747,17 @@ export const App: React.FC = () => {
     }
     if (!isRunning) {
       if (mode === 'focus') {
-        setTimeLeft(updated.focusDuration * 60);
-        setTotalTime(updated.focusDuration * 60);
+        const secs = Math.max(60, (updated.focusDuration || DEFAULT_SETTINGS.focusDuration) * 60);
+        setTimeLeft(secs);
+        setTotalTime(secs);
       } else if (mode === 'shortBreak') {
-        setTimeLeft(updated.shortBreakDuration * 60);
-        setTotalTime(updated.shortBreakDuration * 60);
+        const secs = Math.max(60, (updated.shortBreakDuration || DEFAULT_SETTINGS.shortBreakDuration) * 60);
+        setTimeLeft(secs);
+        setTotalTime(secs);
       } else if (mode === 'longBreak') {
-        setTimeLeft(updated.longBreakDuration * 60);
-        setTotalTime(updated.longBreakDuration * 60);
+        const secs = Math.max(60, (updated.longBreakDuration || DEFAULT_SETTINGS.longBreakDuration) * 60);
+        setTimeLeft(secs);
+        setTotalTime(secs);
       }
     }
   };
