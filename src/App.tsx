@@ -1068,14 +1068,9 @@ export const App: React.FC = () => {
         <div className="w-full px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3 flex items-center justify-between font-pixel-heading gap-2">
           
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            {/* Chunky 3D Pixel Logo with Flame App Icon */}
+            {/* Chunky 3D Pixel Logo */}
             <div className="flex items-center gap-2 select-none group cursor-default">
-              <img
-                src="/assets/aistudio/file_000000009c4481fa9b4a0b22fd083e1c_4236ccf4.png"
-                alt="Praxis App Icon"
-                className="w-7 h-7 sm:w-8 sm:h-8 object-contain shrink-0 transition-transform duration-100 group-hover:scale-105"
-              />
-              <span className="font-pixel-chunky text-lg sm:text-2xl font-bold lowercase tracking-normal transition-transform duration-100 group-hover:scale-105">
+              <span className="font-pixel-chunky text-lg sm:text-2xl font-bold lowercase tracking-normal transition-transform duration-100 hover:scale-105">
                 praxis
               </span>
             </div>

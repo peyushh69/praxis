@@ -69,7 +69,7 @@ export const InstallApkModal: React.FC<InstallApkModalProps> = ({ isOpen, onClos
           
           <div className="p-3 bg-[#13151f] border border-[#242738] rounded-xs flex items-start gap-3">
             <img
-              src="/assets/aistudio/file_000000009c4481fa9b4a0b22fd083e1c_4236ccf4.png"
+              src="/pwa-192x192.png"
               alt="Praxis App Icon"
               className="w-9 h-9 object-contain shrink-0 shadow-sm"
             />

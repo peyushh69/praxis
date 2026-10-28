@@ -1,23 +1,38 @@
 {
+  "id": "/?v=4",
   "short_name": "Praxis",
   "name": "Praxis Focus & Habit Tracker",
-  "icons": [
-    {
-      "src": "/icon.svg",
-      "sizes": "192x192",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icon.svg",
-      "sizes": "512x512",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
-  ],
+  "description": "Retro 8-bit Pomodoro timer with consistency streak heatmap",
   "start_url": "/",
-  "background_color": "#090a0f",
+  "scope": "/",
+  "background_color": "#000000",
   "theme_color": "#ff3b00",
   "display": "standalone",
-  "orientation": "portrait"
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/pwa-192x192.png?v=4",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png?v=4",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png?v=4",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon.svg?v=4",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
 }
