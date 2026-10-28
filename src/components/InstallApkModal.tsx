@@ -68,9 +68,11 @@ export const InstallApkModal: React.FC<InstallApkModalProps> = ({ isOpen, onClos
         <div className="p-4 sm:p-5 space-y-4 font-pixel-label text-zinc-300 text-[10px] leading-relaxed">
           
           <div className="p-3 bg-[#13151f] border border-[#242738] rounded-xs flex items-start gap-3">
-            <div className="w-9 h-9 rounded-sm bg-[#ff3b00] text-black font-pixel-heading font-black flex items-center justify-center text-xs shrink-0 shadow-sm">
-              P
-            </div>
+            <img
+              src="/assets/aistudio/file_000000009c4481fa9b4a0b22fd083e1c_4236ccf4.png"
+              alt="Praxis App Icon"
+              className="w-9 h-9 object-contain shrink-0 shadow-sm"
+            />
             <div>
               <div className="text-white font-pixel-heading text-[10px] font-bold">Praxis Android PWA</div>
               <div className="text-zinc-400 text-[8.5px] mt-0.5">

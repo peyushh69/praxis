@@ -75,3 +75,27 @@ export interface CountdownGoal {
   description?: string;
   color?: string;
 }
+
+export type AlarmType = 'interval' | 'clock' | 'timeframe' | 'trip_repeat';
+
+export interface MiniAlarm {
+  id: string;
+  title: string;
+  category: 'water' | 'reading' | 'task' | 'custom';
+  type: AlarmType; // 'interval' | 'clock' | 'timeframe' (9AM-9PM hourly/mins) | 'trip_repeat' (X hours, Y times)
+  intervalMinutes: number; // e.g., 15, 30, 45, 60
+  clockTime?: string; // e.g., "17:30"
+  windowStartTime?: string; // e.g., "09:00" (start of daily time frame)
+  windowEndTime?: string; // e.g., "21:00" (end of daily time frame)
+  tripHours?: number; // e.g., 6 (for 6-hour trip/block)
+  tripTotalRings?: number; // e.g., 6 (ring 6 times in 6 hours)
+  tripCompletedRings?: number; // counter of completed rings in current trip
+  repeat: boolean; // Auto-repeat after ringing
+  enabled: boolean;
+  targetTimestamp: number | null; // Next epoch ms when alarm will ring
+  linkedHabitId?: string | null; // Connected HabitItem.id from bottom Daily Habits
+  linkedTaskId?: string | null; // Connected TaskItem.id from Focus Tasks
+  linkedTaskTitle?: string | null; // Cached title of connected task/habit
+  createdAt: number;
+}
+

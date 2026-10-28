@@ -20,6 +20,7 @@ import {
   HabitItem,
   HabitProgressRecord,
   CountdownGoal,
+  MiniAlarm,
 } from '../types';
 import { DEFAULT_HABITS, DEFAULT_SETTINGS } from '../utils/storage';
 
@@ -110,6 +111,7 @@ export function subscribeUserDoc(
     settings?: AppSettings;
     countdownGoal?: CountdownGoal;
     habitLogs?: HabitProgressRecord;
+    alarms?: MiniAlarm[];
   }) => void
 ): Unsubscribe {
   const userDocRef = doc(db, 'users', userId);
@@ -122,6 +124,7 @@ export function subscribeUserDoc(
           settings: data.settings ? { ...DEFAULT_SETTINGS, ...data.settings } : undefined,
           countdownGoal: data.countdownGoal || undefined,
           habitLogs: data.habitLogs || undefined,
+          alarms: Array.isArray(data.alarms) ? data.alarms : undefined,
         });
       }
     },
@@ -347,6 +350,22 @@ export async function saveCountdownGoalToFirestore(userId: string, goal: Countdo
     );
   } catch (error) {
     console.warn('Notice saving countdown goal to Firestore:', error);
+  }
+}
+
+export async function saveAlarmsToFirestore(userId: string, alarms: MiniAlarm[]) {
+  try {
+    const userDocRef = doc(db, 'users', userId);
+    await setDoc(
+      userDocRef,
+      {
+        alarms,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+  } catch (error) {
+    console.warn('Notice saving alarms to Firestore:', error);
   }
 }
 

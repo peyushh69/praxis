@@ -1,14 +1,46 @@
-import { AppSettings, DayLog, PomodoroSession, TaskItem, HabitItem, HabitProgressRecord } from '../types';
+import { AppSettings, DayLog, PomodoroSession, TaskItem, HabitItem, HabitProgressRecord, MiniAlarm } from '../types';
 
 const SETTINGS_KEY = 'pixel_chrono_settings_v2';
 const SESSIONS_KEY = 'pixel_chrono_sessions_v2';
 const TASKS_KEY = 'pixel_chrono_tasks_v2';
 const HABITS_KEY = 'pixel_chrono_habits_v2';
 const HABIT_LOGS_KEY = 'pixel_chrono_habit_logs_v2';
+const ALARMS_KEY = 'pixel_chrono_mini_alarms_v1';
 
 export const DEFAULT_HABITS: HabitItem[] = [
   { id: 'habit-1', number: 1, title: 'newspaper', targetDays: 25, color: '#39d353' },
   { id: 'habit-2', number: 2, title: 'gym', targetDays: 20, color: '#ff7700' },
+];
+
+export const DEFAULT_ALARMS: MiniAlarm[] = [
+  {
+    id: 'alarm-water-default',
+    title: 'Water Reminder 💧',
+    category: 'water',
+    type: 'interval',
+    intervalMinutes: 45,
+    repeat: true,
+    enabled: false,
+    targetTimestamp: null,
+    linkedHabitId: null,
+    linkedTaskId: null,
+    linkedTaskTitle: null,
+    createdAt: 1700000000000,
+  },
+  {
+    id: 'alarm-reading-default',
+    title: 'Reading Session 📖',
+    category: 'reading',
+    type: 'interval',
+    intervalMinutes: 30,
+    repeat: false,
+    enabled: false,
+    targetTimestamp: null,
+    linkedHabitId: 'habit-1',
+    linkedTaskId: null,
+    linkedTaskTitle: 'newspaper',
+    createdAt: 1700000001000,
+  },
 ];
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -125,6 +157,26 @@ export function saveHabitLogs(logs: HabitProgressRecord): void {
     localStorage.setItem(HABIT_LOGS_KEY, JSON.stringify(logs));
   } catch (e) {
     console.error('Failed to save habit logs', e);
+  }
+}
+
+export function loadAlarms(): MiniAlarm[] {
+  try {
+    const raw = localStorage.getItem(ALARMS_KEY);
+    if (!raw) return DEFAULT_ALARMS;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed;
+    return DEFAULT_ALARMS;
+  } catch {
+    return DEFAULT_ALARMS;
+  }
+}
+
+export function saveAlarms(alarms: MiniAlarm[]): void {
+  try {
+    localStorage.setItem(ALARMS_KEY, JSON.stringify(alarms));
+  } catch (e) {
+    console.error('Failed to save alarms', e);
   }
 }
 

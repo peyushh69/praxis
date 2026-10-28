@@ -25,13 +25,16 @@ import {
   Flame,
   Info,
   Infinity as InfinityIcon,
+  Bell,
 } from 'lucide-react';
-import { HabitItem, HabitProgressRecord, HabitSchedule, HabitFrequency } from '../types';
+import { HabitItem, HabitProgressRecord, HabitSchedule, HabitFrequency, MiniAlarm } from '../types';
 import { addHabitToCalendar } from '../services/calendarService';
 
 interface RadialHabitTrackerProps {
   habits: HabitItem[];
   habitLogs: HabitProgressRecord;
+  alarms?: MiniAlarm[];
+  onSetHabitAlarm?: (habit: HabitItem) => void;
   onUpdateHabits: (habits: HabitItem[]) => void;
   onDeleteHabit?: (habitId: string) => void;
   onToggleHabitDay: (monthKey: string, habitId: string, day: number) => void;
@@ -132,6 +135,8 @@ export function formatFrequencyLabel(schedule?: HabitSchedule): string {
 export const RadialHabitTracker: React.FC<RadialHabitTrackerProps> = ({
   habits,
   habitLogs,
+  alarms = [],
+  onSetHabitAlarm,
   onUpdateHabits,
   onDeleteHabit,
   onToggleHabitDay,
@@ -1143,41 +1148,68 @@ export const RadialHabitTracker: React.FC<RadialHabitTrackerProps> = ({
                             )}
                           </div>
 
-                          {/* Check Button */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onToggleHabitDay(monthKey, habit.id, selectedDay);
-                              
-                              if (!isDoneForSelectedDay) {
-                                // Trigger calendar sync in background when habit is marked complete
-                                const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
-                                addHabitToCalendar(habit, dateStr).catch(err => {
-                                  console.error("Failed to sync to calendar", err);
-                                });
-                              }
-                            }}
-                            className={`px-2 py-1 text-[7.5px] font-pixel-heading border flex items-center gap-1 cursor-pointer transition-colors shrink-0 ${
-                              isDoneForSelectedDay
-                                ? 'bg-[#39d353] text-black border-[#45e360] font-bold shadow-[0_0_8px_rgba(57,211,83,0.4)]'
-                                : !isScheduledOnSelectedDay
-                                ? 'bg-[#12131b] text-zinc-500 border-[#242636] hover:text-white'
-                                : 'bg-[#14151f] text-zinc-400 border-[#282a3a] hover:text-white hover:border-zinc-500'
-                            }`}
-                            title={`Toggle habit for Day ${selectedDay}`}
-                          >
-                            {isDoneForSelectedDay ? (
-                              <>
-                                <CheckSquare size={11} />
-                                <span>DONE</span>
-                              </>
-                            ) : (
-                              <>
-                                <Square size={11} />
-                                <span>{isScheduledOnSelectedDay ? 'CHECK' : 'LOG EXTRA'}</span>
-                              </>
-                            )}
-                          </button>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {/* Set / View Linked Alarm Button */}
+                            {onSetHabitAlarm && (() => {
+                              const linkedActiveAlarm = alarms.find(
+                                (a) => a.linkedHabitId === habit.id && a.enabled
+                              );
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onSetHabitAlarm(habit);
+                                  }}
+                                  className={`px-2 py-1 text-[7px] font-pixel-heading border flex items-center gap-1 cursor-pointer transition-colors ${
+                                    linkedActiveAlarm
+                                      ? 'bg-[#ff3b00]/15 text-[#ff3b00] border-[#ff3b00] font-bold'
+                                      : 'bg-[#12141e] text-zinc-400 border-[#26293a] hover:text-[#ff3b00] hover:border-[#ff3b00]/60'
+                                  }`}
+                                  title={`Set alarm for "${habit.title}"`}
+                                >
+                                  <Bell size={10} />
+                                  <span>{linkedActiveAlarm ? 'ALARM ON' : 'ALARM'}</span>
+                                </button>
+                              );
+                            })()}
+
+                            {/* Check Button */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onToggleHabitDay(monthKey, habit.id, selectedDay);
+                                
+                                if (!isDoneForSelectedDay) {
+                                  // Trigger calendar sync in background when habit is marked complete
+                                  const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
+                                  addHabitToCalendar(habit, dateStr).catch(err => {
+                                    console.error("Failed to sync to calendar", err);
+                                  });
+                                }
+                              }}
+                              className={`px-2 py-1 text-[7.5px] font-pixel-heading border flex items-center gap-1 cursor-pointer transition-colors shrink-0 ${
+                                isDoneForSelectedDay
+                                  ? 'bg-[#39d353] text-black border-[#45e360] font-bold shadow-[0_0_8px_rgba(57,211,83,0.4)]'
+                                  : !isScheduledOnSelectedDay
+                                  ? 'bg-[#12131b] text-zinc-500 border-[#242636] hover:text-white'
+                                  : 'bg-[#14151f] text-zinc-400 border-[#282a3a] hover:text-white hover:border-zinc-500'
+                              }`}
+                              title={`Toggle habit for Day ${selectedDay}`}
+                            >
+                              {isDoneForSelectedDay ? (
+                                <>
+                                  <CheckSquare size={11} />
+                                  <span>DONE</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Square size={11} />
+                                  <span>{isScheduledOnSelectedDay ? 'CHECK' : 'LOG EXTRA'}</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>

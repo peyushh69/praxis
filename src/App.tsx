@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Settings, LogIn, LogOut, User as UserIcon, Cloud, Smartphone, AlertCircle } from 'lucide-react';
-import { TimerMode, AppSettings, PomodoroSession, TaskItem, DayLog, HabitItem, HabitProgressRecord, CountdownGoal } from './types';
+import { TimerMode, AppSettings, PomodoroSession, TaskItem, DayLog, HabitItem, HabitProgressRecord, CountdownGoal, MiniAlarm } from './types';
 import {
   formatDateKey,
   aggregateDayLogs,
@@ -17,6 +17,8 @@ import {
   saveHabits,
   loadHabitLogs,
   saveHabitLogs,
+  loadAlarms,
+  saveAlarms,
 } from './utils/storage';
 import {
   saveActiveTimer,
@@ -50,11 +52,13 @@ import {
   saveHabitLogsToFirestore,
   saveSettingsToFirestore,
   saveCountdownGoalToFirestore,
+  saveAlarmsToFirestore,
   resetUserDataInFirestore,
   DEFAULT_COUNTDOWN_GOAL,
 } from './services/firestoreService';
 
 import { PixelTimer } from './components/PixelTimer';
+import { MiniAlarmSection, getNextAlarmStateOnTrigger } from './components/MiniAlarmSection';
 import { ExamCountdownCard } from './components/ExamCountdownCard';
 import { ConsistencyHeatmap } from './components/ConsistencyHeatmap';
 import { StatsOverview } from './components/StatsOverview';
@@ -79,6 +83,13 @@ export const App: React.FC = () => {
   const [habits, setHabits] = useState<HabitItem[]>(() => loadHabits());
   const [habitLogs, setHabitLogs] = useState<HabitProgressRecord>(() => loadHabitLogs());
   const [countdownGoal, setCountdownGoal] = useState<CountdownGoal>(DEFAULT_COUNTDOWN_GOAL);
+  const [alarms, setAlarms] = useState<MiniAlarm[]>(() => loadAlarms());
+  const [ringingAlarms, setRingingAlarms] = useState<MiniAlarm[]>([]);
+  const [quickLinkTarget, setQuickLinkTarget] = useState<{
+    type: 'habit' | 'task';
+    id: string;
+    title: string;
+  } | null>(null);
 
   // Timer dynamic state - initialized from active timer persistence if available
   const [mode, setMode] = useState<TimerMode>(() => {
@@ -166,6 +177,7 @@ export const App: React.FC = () => {
         setHabits(loadHabits());
         setHabitLogs(loadHabitLogs());
         setSettings(loadSettings());
+        setAlarms(loadAlarms());
         setCountdownGoal(DEFAULT_COUNTDOWN_GOAL);
 
         const active = loadActiveTimer();
@@ -184,11 +196,15 @@ export const App: React.FC = () => {
 
     const uid = currentUser.uid;
 
-    // 1. Subscribe to User top-level doc (settings, countdownGoal, habitLogs)
+    // 1. Subscribe to User top-level doc (settings, countdownGoal, habitLogs, alarms)
     const unsubUserDoc = subscribeUserDoc(uid, (data) => {
       if (data.settings) setSettings(data.settings);
       if (data.countdownGoal) setCountdownGoal(data.countdownGoal);
       if (data.habitLogs) setHabitLogs(data.habitLogs);
+      if (data.alarms) {
+        setAlarms(data.alarms);
+        saveAlarms(data.alarms);
+      }
     });
 
     // 2. Subscribe to Sessions subcollection
@@ -896,12 +912,144 @@ export const App: React.FC = () => {
     }
   };
 
+  // ---------------------------------------------------------------------------
+  // Mini Beep-Beep Alarms Engine (Water, Reading, & Task-Connected Alarms)
+  // ---------------------------------------------------------------------------
+  const handleUpdateAlarms = (newAlarms: MiniAlarm[]) => {
+    setAlarms(newAlarms);
+    saveAlarms(newAlarms);
+    if (currentUser) {
+      saveAlarmsToFirestore(currentUser.uid, newAlarms);
+    }
+  };
+
+  useEffect(() => {
+    const hasEnabledAlarm = alarms.some((a) => a.enabled && a.targetTimestamp);
+    if (!hasEnabledAlarm) return;
+
+    const checkAlarms = () => {
+      const now = Date.now();
+      let changed = false;
+      const newlyTriggered: MiniAlarm[] = [];
+
+      const updatedAlarms = alarms.map((alarm) => {
+        if (
+          alarm.enabled &&
+          typeof alarm.targetTimestamp === 'number' &&
+          Number.isFinite(alarm.targetTimestamp) &&
+          now >= alarm.targetTimestamp
+        ) {
+          changed = true;
+          newlyTriggered.push(alarm);
+          return getNextAlarmStateOnTrigger(alarm, now);
+        }
+        return alarm;
+      });
+
+      if (changed && newlyTriggered.length > 0) {
+        setAlarms(updatedAlarms);
+        saveAlarms(updatedAlarms);
+        if (currentUser) {
+          saveAlarmsToFirestore(currentUser.uid, updatedAlarms);
+        }
+
+        // Start Beep-Beep loop and push notifications
+        cleanAudio.startAlarmLoop(settings.soundVolume || 0.75);
+        setRingingAlarms((prev) => {
+          const existingIds = new Set(prev.map((r) => r.id));
+          const merged = [...prev];
+          newlyTriggered.forEach((tr) => {
+            if (!existingIds.has(tr.id)) {
+              merged.push(tr);
+            }
+          });
+          return merged;
+        });
+
+        newlyTriggered.forEach((tr) => {
+          showDesktopNotification(`🔔 ${tr.title}`, {
+            body: tr.linkedTaskTitle
+              ? `Beep-Beep! Time for your linked task: ${tr.linkedTaskTitle}`
+              : `Beep-Beep! Your ${tr.title} reminder is ringing.`,
+          });
+        });
+      }
+    };
+
+    const intervalId = window.setInterval(checkAlarms, 1000);
+    const onVisChange = () => {
+      if (document.visibilityState === 'visible') checkAlarms();
+    };
+    document.addEventListener('visibilitychange', onVisChange);
+    window.addEventListener('focus', checkAlarms);
+
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisChange);
+      window.removeEventListener('focus', checkAlarms);
+    };
+  }, [alarms, currentUser, settings.soundVolume]);
+
+  const handleDismissRinging = (alarmId: string) => {
+    setRingingAlarms((prev) => {
+      const next = prev.filter((a) => a.id !== alarmId);
+      if (next.length === 0) {
+        cleanAudio.stopAlarmLoop();
+      }
+      return next;
+    });
+  };
+
+  const handleSnoozeRinging = (alarmId: string, minutes = 5) => {
+    handleDismissRinging(alarmId);
+    const snoozeTarget = Date.now() + minutes * 60 * 1000;
+    const updated = alarms.map((a) =>
+      a.id === alarmId
+        ? {
+            ...a,
+            enabled: true,
+            targetTimestamp: snoozeTarget,
+          }
+        : a
+    );
+    handleUpdateAlarms(updated);
+  };
+
+  const handleCompleteLinkedItem = (alarm: MiniAlarm) => {
+    handleDismissRinging(alarm.id);
+    if (alarm.linkedHabitId) {
+      const now = new Date();
+      const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const todayDay = now.getDate();
+      const currentList = habitLogs[monthKey]?.[alarm.linkedHabitId] || [];
+      if (!currentList.includes(todayDay)) {
+        handleToggleHabitDay(monthKey, alarm.linkedHabitId, todayDay);
+      }
+    }
+    if (alarm.linkedTaskId) {
+      const t = tasks.find((item) => item.id === alarm.linkedTaskId);
+      if (t && !t.completed) {
+        handleToggleTask(t.id);
+      }
+    }
+  };
+
+  const handleSetHabitAlarm = (habit: HabitItem) => {
+    setQuickLinkTarget({ type: 'habit', id: habit.id, title: habit.title });
+    const el = document.getElementById('mini-alarm-section');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
+
   const handleResetAllData = () => {
     setSessions([]);
     setTasks([]);
     setHabitLogs({});
     setCompletedCycles(0);
     setActiveTaskId(null);
+    cleanAudio.stopAlarmLoop();
+    setRingingAlarms([]);
     handleReset();
     if (currentUser) {
       resetUserDataInFirestore(currentUser.uid);
@@ -920,9 +1068,14 @@ export const App: React.FC = () => {
         <div className="w-full px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3 flex items-center justify-between font-pixel-heading gap-2">
           
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            {/* Chunky 3D Pixel Logo */}
+            {/* Chunky 3D Pixel Logo with Flame App Icon */}
             <div className="flex items-center gap-2 select-none group cursor-default">
-              <span className="font-pixel-chunky text-lg sm:text-2xl font-bold lowercase tracking-normal transition-transform duration-100 hover:scale-105">
+              <img
+                src="/assets/aistudio/file_000000009c4481fa9b4a0b22fd083e1c_4236ccf4.png"
+                alt="Praxis App Icon"
+                className="w-7 h-7 sm:w-8 sm:h-8 object-contain shrink-0 transition-transform duration-100 group-hover:scale-105"
+              />
+              <span className="font-pixel-chunky text-lg sm:text-2xl font-bold lowercase tracking-normal transition-transform duration-100 group-hover:scale-105">
                 praxis
               </span>
             </div>
@@ -1129,6 +1282,21 @@ export const App: React.FC = () => {
           activeTask={activeTask}
         />
 
+        {/* Mini Beep-Beep Alarms Section (Water, Reading Sessions, & Task-Connected Alarms) */}
+        <MiniAlarmSection
+          alarms={alarms}
+          habits={habits}
+          tasks={tasks}
+          ringingAlarms={ringingAlarms}
+          soundVolume={settings.soundVolume}
+          onUpdateAlarms={handleUpdateAlarms}
+          onDismissRinging={handleDismissRinging}
+          onSnoozeRinging={handleSnoozeRinging}
+          onCompleteLinkedItem={handleCompleteLinkedItem}
+          quickLinkTarget={quickLinkTarget}
+          onClearQuickLinkTarget={() => setQuickLinkTarget(null)}
+        />
+
         {/* Daily Consistency Green Box Heatmap (Matrix positioned cleanly in flow) */}
         <ConsistencyHeatmap
           dayLogs={dayLogs}
@@ -1140,6 +1308,8 @@ export const App: React.FC = () => {
         <RadialHabitTracker
           habits={habits}
           habitLogs={habitLogs}
+          alarms={alarms}
+          onSetHabitAlarm={handleSetHabitAlarm}
           onUpdateHabits={handleUpdateHabits}
           onDeleteHabit={handleDeleteHabit}
           onToggleHabitDay={handleToggleHabitDay}

@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Info, Calendar, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { Info, ChevronLeft, ChevronRight } from 'lucide-react';
 import { DayLog } from '../types';
 import { formatDateKey } from '../utils/storage';
 
@@ -14,8 +14,13 @@ export const ConsistencyHeatmap: React.FC<ConsistencyHeatmapProps> = ({
   onSelectDay,
   dailyTarget,
 }) => {
-  const currentActualYear = new Date().getFullYear();
+  const nowDate = new Date();
+  const currentActualYear = nowDate.getFullYear();
+  const currentActualMonth = nowDate.getMonth();
   const [selectedYear, setSelectedYear] = useState<number>(currentActualYear);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const monthRefs = useRef<Array<HTMLDivElement | null>>([]);
+
   const [hoveredDay, setHoveredDay] = useState<{
     dateStr: string;
     formattedDate: string;
@@ -24,6 +29,34 @@ export const ConsistencyHeatmap: React.FC<ConsistencyHeatmapProps> = ({
     x: number;
     y: number;
   } | null>(null);
+
+  const scrollToMonth = (monthIdx: number, behavior: ScrollBehavior = 'smooth') => {
+    const container = scrollContainerRef.current;
+    const targetEl = monthRefs.current[monthIdx];
+    const firstEl = monthRefs.current[0];
+    if (!container || !targetEl || !firstEl) return;
+
+    const targetLeft = Math.max(0, targetEl.offsetLeft - firstEl.offsetLeft);
+    container.scrollTo({
+      left: targetLeft,
+      behavior,
+    });
+  };
+
+  const handleScrollByMonths = (direction: 'left' | 'right') => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const step = direction === 'left' ? -180 : 180;
+    container.scrollBy({ left: step, behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    const targetMonth = selectedYear === currentActualYear ? currentActualMonth : 0;
+    const rafId = window.requestAnimationFrame(() => {
+      scrollToMonth(targetMonth, 'auto');
+    });
+    return () => window.cancelAnimationFrame(rafId);
+  }, [selectedYear, currentActualYear, currentActualMonth]);
 
   // Year Remaining calculation
   const { daysRemaining, totalDaysInYear, dayOfYear, yearProgressPct } = useMemo(() => {
@@ -217,10 +250,46 @@ export const ConsistencyHeatmap: React.FC<ConsistencyHeatmapProps> = ({
             </p>
           </div>
 
-          {/* Year Navigator & Countdown Badge */}
-          <div className="flex items-center gap-2">
+          {/* Month & Year Navigator */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Left / Right Month Scroll Controls */}
             <div className="flex items-center bg-[#090a0d] border border-[#272935] px-1 py-0.5">
               <button
+                type="button"
+                onClick={() => handleScrollByMonths('left')}
+                className="p-1 text-zinc-400 hover:text-[#ff3b00] transition-colors cursor-pointer"
+                title="Scroll Previous Months"
+              >
+                <ChevronLeft size={13} />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedYear !== currentActualYear) {
+                    setSelectedYear(currentActualYear);
+                  } else {
+                    scrollToMonth(currentActualMonth, 'smooth');
+                  }
+                }}
+                className="px-2 font-pixel-heading text-[8px] text-[#ff3b00] hover:text-white font-bold cursor-pointer uppercase"
+                title="Jump to Current Month"
+              >
+                {monthsData[currentActualMonth]?.name || 'NOW'}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleScrollByMonths('right')}
+                className="p-1 text-zinc-400 hover:text-[#ff3b00] transition-colors cursor-pointer"
+                title="Scroll Next Months"
+              >
+                <ChevronRight size={13} />
+              </button>
+            </div>
+
+            {/* Year Selector */}
+            <div className="flex items-center bg-[#090a0d] border border-[#272935] px-1 py-0.5">
+              <button
+                type="button"
                 onClick={() => setSelectedYear((y) => y - 1)}
                 className="p-1 text-zinc-400 hover:text-[#ff3b00] transition-colors cursor-pointer"
                 title="Previous Year"
@@ -231,6 +300,7 @@ export const ConsistencyHeatmap: React.FC<ConsistencyHeatmapProps> = ({
                 {selectedYear}
               </span>
               <button
+                type="button"
                 onClick={() => setSelectedYear((y) => y + 1)}
                 className="p-1 text-zinc-400 hover:text-[#ff3b00] transition-colors cursor-pointer"
                 title="Next Year"
@@ -238,15 +308,6 @@ export const ConsistencyHeatmap: React.FC<ConsistencyHeatmapProps> = ({
                 <ChevronRight size={13} />
               </button>
             </div>
-
-            {selectedYear !== currentActualYear && (
-              <button
-                onClick={() => setSelectedYear(currentActualYear)}
-                className="pixel-btn-orange px-2 py-1 text-[7px] cursor-pointer"
-              >
-                CURRENT
-              </button>
-            )}
           </div>
         </div>
 
@@ -281,25 +342,22 @@ export const ConsistencyHeatmap: React.FC<ConsistencyHeatmapProps> = ({
           </div>
         </div>
 
-        {/* Matrix Grid Container (Full 12 Months Jan - Dec) */}
-        <div className="relative overflow-x-auto pb-4 pt-2">
+        {/* Matrix Grid Container (Full 12 Months Jan - Dec, auto-aligned to Current Month) */}
+        <div
+          ref={scrollContainerRef}
+          className="relative overflow-x-auto pb-4 pt-2"
+        >
           <div className="min-w-fit flex items-start select-none gap-2">
-            
-            {/* Day of Week Labels on Left */}
-            <div className="flex flex-col gap-1 text-[7px] font-pixel-label text-zinc-400 w-7 shrink-0 text-right pr-1 select-none pt-6">
-              <span className="h-3 leading-3 text-zinc-500">Sun</span>
-              <span className="h-3 leading-3 text-zinc-300">Mon</span>
-              <span className="h-3 leading-3 text-zinc-500">Tue</span>
-              <span className="h-3 leading-3 text-zinc-300">Wed</span>
-              <span className="h-3 leading-3 text-zinc-500">Thu</span>
-              <span className="h-3 leading-3 text-zinc-300">Fri</span>
-              <span className="h-3 leading-3 text-zinc-500">Sat</span>
-            </div>
-
             {/* Months Container: All 12 months from JAN to DEC */}
             <div className="flex items-start gap-2">
               {monthsData.map((m) => (
-                <div key={m.monthIndex} className="flex flex-col items-center">
+                <div
+                  key={m.monthIndex}
+                  ref={(el) => {
+                    monthRefs.current[m.monthIndex] = el;
+                  }}
+                  className="flex flex-col items-center shrink-0"
+                >
                   {/* Centered Month Header */}
                   <div className="h-6 flex items-center justify-center text-[7.5px] font-pixel-heading text-zinc-300 font-bold uppercase tracking-wider select-none">
                     {m.name}
@@ -310,55 +368,55 @@ export const ConsistencyHeatmap: React.FC<ConsistencyHeatmapProps> = ({
                     {m.weeks.map((week, wIdx) => (
                       <div key={wIdx} className="flex flex-col gap-1">
                         {week.map((dayItem, dIdx) => {
-                          if (dayItem.isPadding) {
+                            if (dayItem.isPadding) {
+                              return (
+                                <div
+                                  key={dIdx}
+                                  className="w-3 h-3 bg-[#040507] border border-[#0d0e14] opacity-50 pointer-events-none select-none"
+                                />
+                              );
+                            }
+
+                            const level = getIntensityLevel(dayItem.log);
+                            const isToday = dayItem.dateStr === formatDateKey(new Date());
+
                             return (
-                              <div
+                              <button
                                 key={dIdx}
-                                className="w-3 h-3 bg-[#040507] border border-[#0d0e14] opacity-50 pointer-events-none select-none"
+                                onClick={() => {
+                                  if (!dayItem.isCurrentYear) return;
+                                  onSelectDay(dayItem.dateStr, dayItem.log);
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (!dayItem.isCurrentYear) return;
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  setHoveredDay({
+                                    dateStr: dayItem.dateStr,
+                                    formattedDate: dayItem.date.toLocaleDateString(undefined, {
+                                      weekday: 'short',
+                                      month: 'short',
+                                      day: 'numeric',
+                                      year: 'numeric',
+                                    }),
+                                    completed: dayItem.log?.completedPomodoros || 0,
+                                    minutes: dayItem.log?.totalMinutes || 0,
+                                    x: rect.left + rect.width / 2,
+                                    y: rect.top,
+                                  });
+                                }}
+                                onMouseLeave={() => setHoveredDay(null)}
+                                className={`w-3 h-3 border transition-all duration-100 cursor-pointer ${getColorClass(
+                                  level,
+                                  dayItem.isFuture,
+                                  dayItem.isCurrentYear
+                                )} ${isToday ? 'ring-2 ring-[#ff3b00] ring-offset-1 ring-offset-black z-10' : ''}`}
                               />
                             );
-                          }
-
-                          const level = getIntensityLevel(dayItem.log);
-                          const isToday = dayItem.dateStr === formatDateKey(new Date());
-
-                          return (
-                            <button
-                              key={dIdx}
-                              onClick={() => {
-                                if (!dayItem.isCurrentYear) return;
-                                onSelectDay(dayItem.dateStr, dayItem.log);
-                              }}
-                              onMouseEnter={(e) => {
-                                if (!dayItem.isCurrentYear) return;
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                setHoveredDay({
-                                  dateStr: dayItem.dateStr,
-                                  formattedDate: dayItem.date.toLocaleDateString(undefined, {
-                                    weekday: 'short',
-                                    month: 'short',
-                                    day: 'numeric',
-                                    year: 'numeric',
-                                  }),
-                                  completed: dayItem.log?.completedPomodoros || 0,
-                                  minutes: dayItem.log?.totalMinutes || 0,
-                                  x: rect.left + rect.width / 2,
-                                  y: rect.top,
-                                });
-                              }}
-                              onMouseLeave={() => setHoveredDay(null)}
-                              className={`w-3 h-3 border transition-all duration-100 cursor-pointer ${getColorClass(
-                                level,
-                                dayItem.isFuture,
-                                dayItem.isCurrentYear
-                              )} ${isToday ? 'ring-2 ring-[#ff3b00] ring-offset-1 ring-offset-black z-10' : ''}`}
-                            />
-                          );
-                        })}
-                      </div>
-                    ))}
+                          })}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
               ))}
             </div>
           </div>
